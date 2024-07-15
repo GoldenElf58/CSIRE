@@ -106,7 +106,7 @@ def run_tflite(img, input_details, output_details, interpreter, info=False, disp
 
 def create_model():
     model = models.Sequential([
-        layers.Input(shape=(60,)),
+        layers.Input(shape=(128,)),
         layers.Dense(16, activation='relu'),
         layers.Dense(16, activation='relu'),
         layers.Dense(9, activation='softmax')
@@ -114,21 +114,8 @@ def create_model():
     return model
 
 
-def run_model(model, input1, input2, input3):
-    # Ensure all inputs are 2D arrays
-    input1 = np.expand_dims(input1, axis=0) if len(input1.shape) == 1 else input1
-    input2 = np.expand_dims(input2, axis=0) if len(input2.shape) == 1 else input2
-    input3_flattened = input3.reshape(1, -1) if len(input3.shape) == 2 else input3.reshape(1, -1)
-    
-    # Concatenate inputs
-    concatenated_inputs = np.concatenate([input1, input2, input3_flattened], axis=1)
-    
-    # Ensure the input shape is (1, 60)
-    concatenated_inputs = concatenated_inputs.reshape((1, 60))
-    
-    # Run the model
-    output = model.predict(concatenated_inputs, verbose=0)
-    return list(output[0])
+def run_model(model, inputs):
+    return list(model.predict(inputs, verbose=0)[0])
 
 
 def take_action(output, ale):
@@ -141,7 +128,6 @@ def take_action(output, ale):
 
 
 def main():
-    input_details, output_details, interpreter = load_tflite_model()
     ale = ale_init('MontezumaRevenge')
     print(ale.getRAM())
     model = create_model()
@@ -149,11 +135,10 @@ def main():
     steps = 1_000
     reward = 0
     for i in range(steps):
-        input1, input2, input3 = run_tflite(ale.getScreenRGB(), input_details, output_details, interpreter)
-        output = run_model(model, input1, input2, input3)
+        inputs = ale.getRAM().reshape(1, -1)
+        output = run_model(model, inputs)
         reward += take_action(output, ale)
     print(f'Total Reward: {reward}')
-    run_tflite(ale.getScreenRGB(), input_details, output_details, interpreter, info=True, display=True)
     
 
 if __name__ == "__main__":
