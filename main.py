@@ -1,21 +1,35 @@
 from ale_py import ALEInterface, roms
+import concurrent.futures
+from contextlib import contextmanager
 import cv2
-import gym
-import neat
 import numpy as np
+import os
 from PIL import Image
+import sys
 import tensorflow as tf
 from tensorflow.keras import layers, models
+import time
+
+
+@contextmanager
+def suppress_output():
+    # Redirect stdout and stderr
+    with open(os.devnull, 'w') as devnull:
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        try:
+            sys.stdout = devnull
+            sys.stderr = devnull
+            yield
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
 
 
 def ale_init(game):
-    # Initialize ALE
     ale = ALEInterface()
-    
-    # Use the built-in ROM
     rom = getattr(roms, game)
     ale.loadROM(rom)
-    
     return ale
 
 
@@ -127,19 +141,39 @@ def take_action(output, ale):
     return reward
 
 
-def main():
+def run_steps(steps=100, info=False):
     ale = ale_init('MontezumaRevenge')
-    print(ale.getRAM())
     model = create_model()
-
-    steps = 1_000
     reward = 0
     for i in range(steps):
         inputs = ale.getRAM().reshape(1, -1)
         output = run_model(model, inputs)
         reward += take_action(output, ale)
-    print(f'Total Reward: {reward}')
-    
+    if info: print(f'Total Reward: {reward}')
+    return reward
+
+
+def run_in_parallel(function, iterations=100):
+    results = []
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = [executor.submit(function) for _ in range(iterations)]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                print(f"Function raised an exception: {e}")
+                results.append(None)
+    return results
+
+
+def main():
+    t0 = time.perf_counter()
+    results = run_in_parallel(run_steps)
+    t1 = time.perf_counter()
+    print(f'Time: {t1-t0}')
+    print(f'Results: {results}')
+
 
 if __name__ == "__main__":
     main()
