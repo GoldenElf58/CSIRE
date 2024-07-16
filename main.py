@@ -142,8 +142,7 @@ def display_bounding_boxes(img, boxes, classes, scores, scale_factor=3) -> None:
     cv2.destroyAllWindows()
 
 
-def run_tflite(img, input_details, output_details, interpreter, info=False, display=False) -> tuple[
-    list[float], list[int], list[list[float]]]:
+def run_tflite(img, input_details, output_details, interpreter, info=False, display=False) -> tuple[list[float], list[int], list[list[float]]]:
     input_data = load_image(img, input_details)
 
     # Run Inference
@@ -170,7 +169,6 @@ def create_model() -> models.Sequential:
     model: models.Sequential = models.Sequential([
         layers.Input(shape=(128,)),
         layers.Dense(16, activation='relu'),
-        layers.Dense(16, activation='relu'),
         layers.Dense(9, activation='softmax')
     ])
     return model
@@ -189,7 +187,7 @@ def take_action(output, ale) -> int:
     return reward
 
 
-def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False) -> int:
+def run_steps(steps=1_000, info=False, game='MontezumaRevenge', suppress=False) -> int:
     ale = ale_init(game, suppress)
     model = create_model()
     reward = 0
@@ -246,7 +244,7 @@ def run_in_parallel(function, iterations=100):
 def main() -> None:
     print('Program Started')
     t0 = time.perf_counter()
-    results = run_in_parallel(run_steps, 5)
+    results = run_in_parallel(run_steps, 100)
     t1 = time.perf_counter()
     print(f'Time: {t1 - t0:.2f}s')
     print(f'Results: {results}')
