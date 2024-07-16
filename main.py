@@ -58,6 +58,7 @@ if __name__ == "__main__":
 
 def convert_game_name(game_name, to_camel_case=True) -> str:
     if to_camel_case:
+        if '_' not in game_name: return game_name
         words: list[str] = game_name.split('_')
         capitalized_words: list[str] = [word.capitalize() for word in words]
         return ''.join(capitalized_words)
@@ -66,20 +67,17 @@ def convert_game_name(game_name, to_camel_case=True) -> str:
         return converted_name
 
 
-def ale_init(game, suppress=True) -> ALEInterface:
+def ale_init(game, suppress=False) -> ALEInterface:
     ale: ALEInterface = ALEInterface()
-    rom = getattr(roms, game)
-    ale.loadROM(rom)
-    return ale
 
-    # if suppress:
-    #     game = convert_game_name(game, False)
-    #     load_rom_suppressed(game)
-    # else:
-    #     game = convert_game_name(game, True)
-    #     rom = getattr(roms, game)
-    #     ale.loadROM(rom)
-    # return ale
+    if suppress:
+        game = convert_game_name(game, False)
+        load_rom_suppressed(game)
+    else:
+        game = convert_game_name(game, True)
+        rom = getattr(roms, game)
+        ale.loadROM(rom)
+    return ale
 
 
 def load_tflite_model() -> tuple[list, list, tf.lite.Interpreter]:
