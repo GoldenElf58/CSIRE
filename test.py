@@ -8,7 +8,7 @@ import pygame
 import subprocess
 import sys
 
-from neuroevolution import run_neat, test_neat
+from neuroevolution import test_neat
 
 
 # ANSI escape codes for colors
@@ -162,7 +162,7 @@ def ale_init(game, suppress=False) -> ALEInterface:
 
 
 def main():
-    choice = input("Test NEAT (N) or play game (G)").lower()
+    choice = input("Test NEAT (N) or play game (G)?  ").lower()
     if choice == 'n':
         test_neat()
     elif choice == 'g':

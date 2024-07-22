@@ -3,16 +3,6 @@ import os
 import time
 
 
-def eval_genomes(genomes, config, input_output_pairs):
-    for genome_id, genome in genomes:
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
-        genome.fitness = 4.0  # Max fitness
-        
-        for [inputs], [expected_outputs] in input_output_pairs:
-            output = net.activate(inputs)
-            genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
-
-
 class TimedReporter(neat.StdOutReporter):
     def __init__(self, show_species_detail, interval=5):
         super().__init__(show_species_detail)
@@ -43,6 +33,16 @@ class TimedReporter(neat.StdOutReporter):
             super().info(msg)
 
 
+def XOR_eval(genomes, config, input_output_pairs):
+    for genome_id, genome in genomes:
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        genome.fitness = 4.0  # Max fitness
+        
+        for [inputs], [expected_outputs] in input_output_pairs:
+            output = net.activate(inputs)
+            genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
+
+
 def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=False, display_best_output=True,
              display_best_fitness=True, checkpoints=False):
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
@@ -58,7 +58,7 @@ def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=F
     
     # Use a lambda function to pass the inputs and outputs to the eval_genomes_wrapper
     def eval_func(genomes, eval_config):
-        eval_genomes(genomes, eval_config, input_output_pairs)
+        XOR_eval(genomes, eval_config, input_output_pairs)
     
     winner = p.run(eval_func, 1_000)
     
@@ -67,7 +67,7 @@ def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=F
         print(f'\nBest genome:\n{winner}')
     
     if display_best_fitness:
-        print(f'\nBest Fitness: {winner.fitness:.4}')
+        print(f'\nBest Fitness: {winner.fitness:.3f}')
     
     if display_best_output:
         # Show output of the most fit genome against training data.

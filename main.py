@@ -189,7 +189,7 @@ def take_action(output, ale) -> int:
     return reward
 
 
-def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False) -> int:
+def run_steps(steps=10, info=False, game='MontezumaRevenge', suppress=False) -> int:
     ale = ale_init(game, suppress)
     model = create_model()
     reward = 0
@@ -203,17 +203,22 @@ def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False) ->
 
 
 def clear():
-    sys.stdout.write('\r' + ' ' * 50 + '\r')
+    sys.stdout.write('\r' + '\n' * 50 + '\r')
     sys.stdout.flush()
 
 
-def rotate(stop_event, total_iterations, current_iteration):
-    blank = '\r' + ' ' * 50 + '\r'
-    loading_signs = itertools.cycle([blank + '|', blank + '/', blank + '-', blank + '\\'])
+def progress_bar(percent, bar_length=50):
+    progress_length = int(bar_length * percent)
+    bar = '█' * progress_length + '░' * (bar_length - progress_length)
+    return bar
+
+
+def load(stop_event, total_iterations, current_iteration, results):
+    loading_signs = itertools.cycle(['|', '/', '-', '\\'])
     while not stop_event.is_set():
-        clear()
-        percent_complete = (current_iteration[0] / total_iterations) * 100
-        sys.stdout.write(f"{next(loading_signs)} {percent_complete:.2f}%")
+        percent_complete = (current_iteration[0] / total_iterations)
+        bar = progress_bar(percent_complete)
+        sys.stdout.write(f"\r{next(loading_signs)} {bar} - {percent_complete*100:.1f}%, {100 or 1 in results}")
         sys.stdout.flush()
         time.sleep(0.5)  # Adjust the delay for visual effect
 
@@ -224,7 +229,7 @@ def run_in_parallel(function, iterations=100):
     current_iteration = [0]
 
     # Start the loading sign in a separate thread
-    loader_thread = threading.Thread(target=rotate, args=(stop_event, iterations, current_iteration))
+    loader_thread = threading.Thread(target=load, args=(stop_event, iterations, current_iteration, results))
     loader_thread.start()
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -248,14 +253,14 @@ def run_in_parallel(function, iterations=100):
 
 
 def main() -> None:
-    print('Program Started')
     t0 = time.perf_counter()
     results = run_in_parallel(run_steps)
     t1 = time.perf_counter()
     t = t1 - t0
-    print(f'Time: {t//60:.2f}m {t%60}s')
+    print(f'Time: {t//60:.0f}m {t%60:.1f}s')
     print(f'Results: {results}')
 
 
 if __name__ == "__main__":
+    print('Program Started')
     main()
