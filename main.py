@@ -1,17 +1,17 @@
+from ale_py import ALEInterface, roms
 import concurrent.futures
+import cv2
 import itertools
+import numpy as np
 import os
+from PIL import Image
 import subprocess
 import sys
+import tensorflow as tf
+from tensorflow.keras import layers, models
 import threading
 import time
 
-import cv2
-import numpy as np
-import tensorflow as tf
-from PIL import Image
-from ale_py import ALEInterface, roms
-from tensorflow.keras import layers, models
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages
 
@@ -168,8 +168,8 @@ def run_tflite(img, input_details, output_details, interpreter, info=False, disp
 def create_model() -> models.Sequential:
     model: models.Sequential = models.Sequential([
         layers.Input(shape=(128,)),
-        layers.Dense(16, activation='relu'),
-        layers.Dense(9, activation='softmax')
+        layers.Dense(8, activation='relu'),
+        layers.Dense(18, activation='softmax')
     ])
     return model
 
@@ -187,7 +187,7 @@ def take_action(output, ale) -> int:
     return reward
 
 
-def run_steps(steps=1_000, info=False, game='MontezumaRevenge', suppress=False) -> int:
+def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False) -> int:
     ale = ale_init(game, suppress)
     model = create_model()
     reward = 0
@@ -205,11 +205,13 @@ def clear():
     sys.stdout.flush()
 
 
-def rotate(stop_event):
-    loading_signs = itertools.cycle(['|', '/', '-', '\\'])
+def rotate(stop_event, total_iterations, current_iteration):
+    blank = '\r' + ' ' * 50 + '\r'
+    loading_signs = itertools.cycle([blank + '|', blank + '/', blank + '-', blank + '\\'])
     while not stop_event.is_set():
         clear()
-        sys.stdout.write(next(loading_signs))
+        percent_complete = (current_iteration[0] / total_iterations) * 100
+        sys.stdout.write(f"{next(loading_signs)} {percent_complete:.2f}%")
         sys.stdout.flush()
         time.sleep(0.5)  # Adjust the delay for visual effect
 
@@ -217,9 +219,10 @@ def rotate(stop_event):
 def run_in_parallel(function, iterations=100):
     results = []
     stop_event = threading.Event()
+    current_iteration = [0]
 
     # Start the loading sign in a separate thread
-    loader_thread = threading.Thread(target=rotate, args=(stop_event,))
+    loader_thread = threading.Thread(target=rotate, args=(stop_event, iterations, current_iteration))
     loader_thread.start()
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -233,6 +236,7 @@ def run_in_parallel(function, iterations=100):
             except Exception as e:
                 print(f"Function raised an exception: {e}")
                 results.append(None)
+            current_iteration[0] += 1  # Increment the iteration count
 
     # Stop the loading sign
     stop_event.set()
@@ -244,9 +248,10 @@ def run_in_parallel(function, iterations=100):
 def main() -> None:
     print('Program Started')
     t0 = time.perf_counter()
-    results = run_in_parallel(run_steps, 100)
+    results = run_in_parallel(run_steps)
     t1 = time.perf_counter()
-    print(f'Time: {t1 - t0:.2f}s')
+    t = t1 - t0
+    print(f'Time: {t//60:.2f}m {t%60}s')
     print(f'Results: {results}')
 
 
