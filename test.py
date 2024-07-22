@@ -8,7 +8,7 @@ import os
 import pygame
 import subprocess
 import sys
-
+import time
 
 # ANSI escape codes for colors
 RESET_COLOR = "\033[0m"
@@ -20,7 +20,7 @@ CYAN_COLOR = '\033[96m'
 
 def play_game(game='MontezumaRevenge-v4'):
     env = gym.make(game, render_mode='rgb_array')
-
+    
     # Define the keys to actions mapping
     keys_to_action = {
         (pygame.K_SPACE,): 1,
@@ -45,25 +45,26 @@ def play_game(game='MontezumaRevenge-v4'):
     previous_ram = None
     ram_changes = defaultdict(lambda: np.zeros(128, dtype=int))  # Track changes per action
     action_counts = defaultdict(int)  # Track the number of times each action was pressed
-
+    
     def callback(obs_t, obs_tp1, action, rew, done, info, keys):
         nonlocal previous_ram
-
+        
         # Get RAM data
         ram = ale_env.getRAM()
-
+        
         if previous_ram is None:
             previous_ram = np.zeros_like(ram)
-
+        
         # Track changes for the current action
         action_counts[action] += 1
         ram_changes[action] += (ram != previous_ram)
-
+        
         # Determine frequently changing bytes
         frequently_changing = ram_changes[action] / action_counts[action] > 0.25
         rarely_changing = ram_changes[action] / action_counts[action] < 0.05
-        noop_frequently_changing = ram_changes[0] / action_counts[0] > 0.25 if action_counts[0] > 0 else np.zeros_like(frequently_changing)
-
+        noop_frequently_changing = ram_changes[0] / action_counts[0] > 0.25 if action_counts[0] > 0 else np.zeros_like(
+            frequently_changing)
+        
         ram_str = ''
         for i, byte in enumerate(ram):
             byte_str = f'{i:03d}:'
@@ -78,11 +79,12 @@ def play_game(game='MontezumaRevenge-v4'):
             else:
                 byte_str += f'{CYAN_COLOR}{byte:03d}{RESET_COLOR} '
             ram_str += byte_str
-
+        
         previous_ram = ram
-
+        
         sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)))
         sys.stdout.flush()
+    
     # Bytes 42 and 43 are x and y pos
     # Byte 26 is the door sprite and blue thingys, 117 is off, 124 is door, 163-165 is blue on animation
     # Byte 30 is the ladder climb sprite, 0 if not on ladder, 62 or 82 on ladder
@@ -90,7 +92,7 @@ def play_game(game='MontezumaRevenge-v4'):
     # Byte 89 is last movement when moving, else 0
     # Byte 90 - 18 is on ladder, 19 is off ladder
     # Byte 91 is the level/screen/room?
-
+    
     play(env, keys_to_action=keys_to_action, callback=callback)
 
 
@@ -112,11 +114,11 @@ def load_rom():
 if __name__ == "__main__":
     load_rom()
 """
-
+    
     script_path = "temp_script.py"
     with open(script_path, "w") as script_file:
         script_file.write(script_content)
-
+    
     # Run the temporary script in a subprocess
     try:
         result = subprocess.run(
@@ -127,7 +129,7 @@ if __name__ == "__main__":
         )
     finally:
         os.remove(script_path)
-
+    
     if result.returncode != 0:
         raise RuntimeError(f"Failed to load ROM: {result.stderr}\nReturn Code: {result.returncode}")
     else:
@@ -147,7 +149,7 @@ def convert_game_name(game_name, to_camel_case=True) -> str:
 
 def ale_init(game, suppress=False) -> ALEInterface:
     ale: ALEInterface = ALEInterface()
-
+    
     if suppress:
         game = convert_game_name(game, False)
         load_rom_suppressed(game)
@@ -158,8 +160,147 @@ def ale_init(game, suppress=False) -> ALEInterface:
     return ale
 
 
+def eval_genomes(genomes, config, input_output_pairs):
+    for genome_id, genome in genomes:
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        genome.fitness = 4.0  # Max fitness
+        
+        for [inputs], [expected_outputs] in input_output_pairs:
+            output = net.activate(inputs)
+            genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
+
+
+# Adjust the frequency of the existing reporter by wrapping it
+class TimedReporter(neat.StdOutReporter):
+    def __init__(self, show_species_detail, interval=5):
+        super().__init__(show_species_detail)
+        self.interval = interval
+        self.last_time = time.time()
+        self.generation_start_time = time.time()
+        self.should_print = True
+
+    def start_generation(self, generation):
+        self.generation = generation
+        self.generation_start_time = time.time()
+        current_time = time.time()
+        if current_time - self.last_time >= self.interval or generation == 1_000:
+            self.should_print = True
+            self.last_time = current_time
+            super().start_generation(generation)
+        else:
+            self.should_print = False
+    
+    def post_evaluate(self, config, population, species, best_genome):
+        if self.should_print:
+            super().post_evaluate(config, population, species, best_genome)
+    
+    def end_generation(self, config, population, species_set):
+        if self.should_print:
+            super().end_generation(config, population, species_set)
+    
+    def complete_extinction(self):
+        if self.should_print:
+            super().complete_extinction()
+    
+    def found_solution(self, config, generation, best):
+        if self.should_print:
+            super().found_solution(config, generation, best)
+    
+    def species_stagnant(self, sid, species):
+        if self.should_print:
+            super().species_stagnant(sid, species)
+    
+    def info(self, msg):
+        if self.should_print:
+            super().info(msg)
+    
+
+class TimedStatisticsReporter(neat.StatisticsReporter):
+    def __init__(self, interval=5):
+        super().__init__()
+        self.interval = interval
+        self.last_time = time.time()
+    
+    def start_generation(self, generation):
+        current_time = time.time()
+        if current_time - self.last_time >= self.interval:
+            super().start_generation(generation)
+            self.last_time = current_time
+
+    def end_generation(self, config, population, species_set):
+        current_time = time.time()
+        if current_time - self.last_time >= self.interval:
+            super().end_generation(config, population, species_set)
+            self.last_time = current_time
+
+
+class TimedCheckpointer(neat.Checkpointer):
+    def __init__(self, generation_interval=10, interval=5, time_interval_seconds=None,
+                 filename_prefix='neat-checkpoint-'):
+        super().__init__(generation_interval, time_interval_seconds, filename_prefix)
+        self.interval = interval
+        self.last_time = time.time()
+    
+    def start_generation(self, generation):
+        current_time = time.time()
+        self.current_generation = generation
+        if current_time - self.last_time >= self.interval:
+            super().start_generation(generation)
+            self.last_time = current_time
+
+    def end_generation(self, config, population, species_set):
+        current_time = time.time()
+        if current_time - self.last_time >= self.interval:
+            super().end_generation(config, population, species_set)
+            self.last_time = current_time
+
+
+def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=False, display_best_output=True, display_best_fitness=True):
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                config_path)
+    
+    p = neat.Population(config)
+    
+    p.add_reporter(TimedReporter(detail, interval=2))
+    p.add_reporter(TimedStatisticsReporter(interval=1))
+    p.add_reporter(TimedCheckpointer(generation_interval=50, interval=1))
+    
+    # Use a lambda function to pass the inputs and outputs to the eval_genomes_wrapper
+    def eval_func(genomes, eval_config):
+        eval_genomes(genomes, eval_config, input_output_pairs)
+    winner = p.run(eval_func, 1_000)
+    
+    if display_best_genome:
+        # Display the winning genome.
+        print(f'\nBest genome:\n{winner}')
+    
+    if display_best_fitness:
+        print(f'\nBest Fitness: {winner.fitness:.4}')
+    
+    if display_best_output:
+        # Show output of the most fit genome against training data.
+        print('\nOutput:')
+        winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
+        for [xi], [xo] in input_output_pairs:
+            output = winner_net.activate(xi)
+            print(f"input {xi}, expected output {xo}, got {[round(x,2) for x in output]}")
+        
+    return winner
+
+
 def main():
-    play_game()
+    input_output_pairs = [
+        ([(0, 0)], [(0,)]),
+        ([(0, 1)], [(1,)]),
+        ([(1, 0)], [(1,)]),
+        ([(1, 1)], [(0,)])
+    ]
+
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config-feedforward-test')
+    run_neat(config_path, input_output_pairs, display_best_genome=True)
+    # play_game()
 
 
 if __name__ == "__main__":
