@@ -1,19 +1,20 @@
+from ale_py import ALEInterface, roms
+from collections import defaultdict
+import gymnasium as gym
+from gym.utils.play import play
 import os
 import subprocess
 import sys
-from ale_py import ALEInterface, roms
-import gymnasium as gym
-from gym.utils.play import play
 import pygame
 import numpy as np
-from collections import defaultdict
 
 
 # ANSI escape codes for colors
 RESET_COLOR = "\033[0m"
 RED_COLOR = "\033[91m"
-GREEN_COLOR = "\033[92m"
 YELLOW_COLOR = "\033[93m"
+GREEN_COLOR = "\033[92m"
+CYAN_COLOR = '\033[96m'
 
 
 def play_game(game='MontezumaRevenge-v4'):
@@ -59,6 +60,7 @@ def play_game(game='MontezumaRevenge-v4'):
 
         # Determine frequently changing bytes
         frequently_changing = ram_changes[action] / action_counts[action] > 0.25
+        rarely_changing = ram_changes[action] / action_counts[action] < 0.05
         noop_frequently_changing = ram_changes[0] / action_counts[0] > 0.25 if action_counts[0] > 0 else np.zeros_like(frequently_changing)
 
         ram_str = ''
@@ -68,6 +70,8 @@ def play_game(game='MontezumaRevenge-v4'):
                 byte_str += f'{GREEN_COLOR}{byte:03d}{RESET_COLOR} '
             elif frequently_changing[i]:
                 byte_str += f'{YELLOW_COLOR}{byte:03d}{RESET_COLOR} '
+            elif rarely_changing[i]:
+                byte_str += f'{CYAN_COLOR}{byte:03d}{RESET_COLOR} '
             elif byte != previous_ram[i]:
                 byte_str += f'{RED_COLOR}{byte:03d}{RESET_COLOR} '
             else:
@@ -78,7 +82,6 @@ def play_game(game='MontezumaRevenge-v4'):
 
         sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)))
         sys.stdout.flush()
-
     # Bytes 42 and 43 are x and y pos
     # Byte 26 is the door sprite and blue thingys, 117 is off, 124 is door, 163-165 is blue on animation
     # Byte 30 is the ladder climb sprite, 0 if not on ladder, 62 or 82 on ladder
