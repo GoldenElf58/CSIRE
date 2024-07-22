@@ -12,6 +12,8 @@ from tensorflow.keras import layers, models
 import threading
 import time
 
+from neuroevolution import run_neat
+
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages
 
