@@ -46,7 +46,7 @@ def play_game(game='MontezumaRevenge-v4'):
     ram_changes = defaultdict(lambda: np.zeros(128, dtype=int))  # Track changes per action
     action_counts = defaultdict(int)  # Track the number of times each action was pressed
     
-    def callback(obs_t, obs_tp1, action, rew, done, info, keys):
+    def callback(obs_t, obs_tp1, action, rew, terminated, truncated, info):
         nonlocal previous_ram
         
         # Get RAM data
@@ -86,7 +86,7 @@ def play_game(game='MontezumaRevenge-v4'):
         sys.stdout.flush()
     
     # Bytes 42 and 43 are x and y pos
-    # Byte 26 is the door sprite and blue thingys, 117 is off, 124 is door, 163-165 is blue on animation
+    # Byte 26 is the door sprite and blue thingies, 117 is off, 124 is door, 163-165 is blue on animation
     # Byte 30 is the ladder climb sprite, 0 if not on ladder, 62 or 82 on ladder
     # Byte 32 - 21 is not on ladder, 102 is on ladder
     # Byte 89 is last movement when moving, else 0
@@ -176,14 +176,12 @@ class TimedReporter(neat.StdOutReporter):
         super().__init__(show_species_detail)
         self.interval = interval
         self.last_time = time.time()
-        self.generation_start_time = time.time()
-        self.should_print = True
+        self.should_print = False
 
     def start_generation(self, generation):
         self.generation = generation
-        self.generation_start_time = time.time()
         current_time = time.time()
-        if current_time - self.last_time >= self.interval or generation == 1_000:
+        if current_time - self.last_time >= self.interval or generation in {0, 999}:
             self.should_print = True
             self.last_time = current_time
             super().start_generation(generation)
@@ -213,49 +211,9 @@ class TimedReporter(neat.StdOutReporter):
     def info(self, msg):
         if self.should_print:
             super().info(msg)
-    
-
-class TimedStatisticsReporter(neat.StatisticsReporter):
-    def __init__(self, interval=5):
-        super().__init__()
-        self.interval = interval
-        self.last_time = time.time()
-    
-    def start_generation(self, generation):
-        current_time = time.time()
-        if current_time - self.last_time >= self.interval:
-            super().start_generation(generation)
-            self.last_time = current_time
-
-    def end_generation(self, config, population, species_set):
-        current_time = time.time()
-        if current_time - self.last_time >= self.interval:
-            super().end_generation(config, population, species_set)
-            self.last_time = current_time
 
 
-class TimedCheckpointer(neat.Checkpointer):
-    def __init__(self, generation_interval=10, interval=5, time_interval_seconds=None,
-                 filename_prefix='neat-checkpoint-'):
-        super().__init__(generation_interval, time_interval_seconds, filename_prefix)
-        self.interval = interval
-        self.last_time = time.time()
-    
-    def start_generation(self, generation):
-        current_time = time.time()
-        self.current_generation = generation
-        if current_time - self.last_time >= self.interval:
-            super().start_generation(generation)
-            self.last_time = current_time
-
-    def end_generation(self, config, population, species_set):
-        current_time = time.time()
-        if current_time - self.last_time >= self.interval:
-            super().end_generation(config, population, species_set)
-            self.last_time = current_time
-
-
-def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=False, display_best_output=True, display_best_fitness=True):
+def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=False, display_best_output=True, display_best_fitness=True, checkpoints=False):
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                 config_path)
@@ -263,15 +221,16 @@ def run_neat(config_path, input_output_pairs, detail=True, display_best_genome=F
     p = neat.Population(config)
     
     p.add_reporter(TimedReporter(detail, interval=2))
-    p.add_reporter(TimedStatisticsReporter(interval=1))
-    p.add_reporter(TimedCheckpointer(generation_interval=50, interval=1))
+    p.add_reporter(neat.StatisticsReporter())
+    if checkpoints:
+        p.add_reporter(neat.Checkpointer())
     
     # Use a lambda function to pass the inputs and outputs to the eval_genomes_wrapper
     def eval_func(genomes, eval_config):
         eval_genomes(genomes, eval_config, input_output_pairs)
     winner = p.run(eval_func, 1_000)
     
-    if display_best_genome:
+    if display_best_genome or winner.fitness > config.fitness_threshold:
         # Display the winning genome.
         print(f'\nBest genome:\n{winner}')
     
@@ -299,7 +258,7 @@ def main():
 
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward-test')
-    run_neat(config_path, input_output_pairs, display_best_genome=True)
+    run_neat(config_path, input_output_pairs)
     # play_game()
 
 
