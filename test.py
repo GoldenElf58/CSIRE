@@ -1,12 +1,13 @@
 from ale_py import ALEInterface, roms
 from collections import defaultdict
-import gymnasium as gym
+import gym
 from gym.utils.play import play
+import neat
+import numpy as np
 import os
+import pygame
 import subprocess
 import sys
-import pygame
-import numpy as np
 
 
 # ANSI escape codes for colors
@@ -70,12 +71,12 @@ def play_game(game='MontezumaRevenge-v4'):
                 byte_str += f'{GREEN_COLOR}{byte:03d}{RESET_COLOR} '
             elif frequently_changing[i]:
                 byte_str += f'{YELLOW_COLOR}{byte:03d}{RESET_COLOR} '
-            elif rarely_changing[i]:
-                byte_str += f'{CYAN_COLOR}{byte:03d}{RESET_COLOR} '
             elif byte != previous_ram[i]:
                 byte_str += f'{RED_COLOR}{byte:03d}{RESET_COLOR} '
+            elif rarely_changing[i]:
+                byte_str += f'{RESET_COLOR}{byte:03d}{RESET_COLOR} '
             else:
-                byte_str += f'{byte:03d} '
+                byte_str += f'{CYAN_COLOR}{byte:03d}{RESET_COLOR} '
             ram_str += byte_str
 
         previous_ram = ram
