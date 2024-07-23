@@ -44,7 +44,7 @@ def XOR_eval(genomes, config, input_output_pairs):
 
 
 def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, display_best_genome=False, display_best_output=True,
-             display_best_fitness=True, checkpoints=False, iterations=1_000):
+             display_best_fitness=True, checkpoints=False, iterations=1_000, checkpoint_interval=100):
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                 config_path)
@@ -54,7 +54,7 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     p.add_reporter(TimedReporter(detail, interval=2))
     p.add_reporter(neat.StatisticsReporter())
     if checkpoints:
-        p.add_reporter(neat.Checkpointer())
+        p.add_reporter(neat.Checkpointer(checkpoint_interval))
     
     def eval_func_compressed(genomes, eval_config):
         if extra_inputs is None:

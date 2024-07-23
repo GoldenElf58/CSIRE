@@ -206,28 +206,35 @@ def progress_bar(percent, bar_length=50) -> str:
     return bar
 
 
-def load(stop_event, total_iterations, current_iteration, results) -> None:
-    loading_signs = itertools.cycle(['|', '/', '-', '\\'])
+def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
+    loader = itertools.cycle(['|', '/', '-', '\\'])
     while not stop_event.is_set():
         percent_complete = (current_iteration[0] / total_iterations)
         bar = progress_bar(percent_complete)
-        success = [0 for _ in range(current_iteration[0])] != results
-        sys.stdout.write(f"\r{next(loading_signs)} {bar} - {percent_complete * 100:.1f}%, {success}")
-        sys.stdout.flush()
+        best = max(results) if len(results) > 0 else 0
+        time_elapsed = time.time() - t0
+        eta = time_elapsed * (1 / max(percent_complete, .01) - 1)
+        print(
+            f"\r{next(loader)} {bar} - {percent_complete * 100:.1f}%, ETA: {eta // 60:.0f}m {eta % 60:.0f}s {best:.3f}",
+            end='')
         time.sleep(0.5)  # Adjust the delay for visual effect
 
 
-def run_in_parallel(function, iterations=100) -> list[float]:
+def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100) -> list[float]:
     results = []
     stop_event = threading.Event()
     current_iteration = [0]
+    t0 = time.time()
     
     # Start the loading sign in a separate thread
-    loader_thread = threading.Thread(target=load, args=(stop_event, iterations, current_iteration, results))
+    loader_thread = threading.Thread(target=load, args=(stop_event, iterations, current_iteration, results, t0))
     loader_thread.start()
     
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [executor.submit(function) for _ in range(iterations)]
+        if kwargs is None:
+            futures = [executor.submit(function) for _ in range(iterations)]
+        else:
+            futures = [executor.submit(function, **kwargs[i]) for i in range(iterations)]
         for future in concurrent.futures.as_completed(futures):
             try:
                 result = future.result()
@@ -246,14 +253,32 @@ def run_in_parallel(function, iterations=100) -> list[float]:
     return results
 
 
-def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False, model=create_model(),
-              activation=models.Sequential.predict) -> int:
+def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False, model=create_model(),
+               activation=models.Sequential.predict) -> int:
     ale = ale_init(game, suppress)
     reward = 0
-    for i in range(steps):
+    last_action = 0
+    last_life = False
+    for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
-        output = run_neat_model(model, inputs)
-        reward += take_action(output, ale)
+        match inputs[58]:
+            case 0:
+                if inputs[55] > 0:
+                    print('Dead')
+                    reward -= 100
+                    break
+            case _: reward += inputs[58] * .001
+        match inputs[66]:
+            case 13: reward += 0.3
+            case 12: reward += 0.6
+            case 14: reward += 0.9
+        reward -= .0001 * inputs[43]
+        if i % frames_per_step == 0:
+            output = run_neat_model(model, inputs)
+            reward += take_action(output, ale)
+            last_action = output
+        else:
+            reward += take_action(last_action, ale)
     if info:
         print(f'Total Reward: {reward}')
     # print(gc.collect())
@@ -261,15 +286,21 @@ def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False, mo
 
 
 def game_eval(genomes, config) -> None:
-    for genome_id, genome in genomes:
+    kwargs = []
+    for _, genome in genomes:
         net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
-        genome.fitness = run_steps(steps=60*60, model=net, activation=neat.nn.FeedForwardNetwork.activate)
+        kwargs.append(
+            {'frames': 60 * 60, 'frames_per_step': 3, 'model': net, 'activation': neat.nn.FeedForwardNetwork.activate})
+        # genome.fitness = run_steps(steps=60*60, model=net, activation=neat.nn.FeedForwardNetwork.activate)
+    results = run_in_parallel(run_frames, kwargs=kwargs, iterations=len(kwargs))
+    for i, [_, genome] in enumerate(genomes):
+        genome.fitness = results[i]
 
 
 def main() -> None:
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
-    run_neat(config_path, eval_func=game_eval)
+    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1)
     # t0 = time.perf_counter()
     # results = run_in_parallel(run_steps)
     # t1 = time.perf_counter()
