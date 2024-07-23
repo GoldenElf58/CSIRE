@@ -10,7 +10,6 @@ import sys
 
 from neuroevolution import test_neat
 
-
 # ANSI escape codes for colors
 RESET_COLOR = "\033[0m"
 RED_COLOR = "\033[91m"
@@ -21,8 +20,6 @@ CYAN_COLOR = '\033[96m'
 
 def play_game(game='MontezumaRevenge-v4'):
     env = gym.make(game, render_mode='rgb_array')
-    
-    # Define the keys to actions mapping
     keys_to_action = {
         (pygame.K_SPACE,): 1,
         (pygame.K_UP,): 2,

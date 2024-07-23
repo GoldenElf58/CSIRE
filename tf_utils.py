@@ -69,8 +69,8 @@ def display_bounding_boxes(img, boxes, classes, scores, scale_factor=3) -> None:
 
 
 def run_tflite(img, input_details, output_details, interpreter, info=False, display=False) -> tuple[list[float],
-                                                                                                    list[int],
-                                                                                                    list[list[float]]]:
+list[int],
+list[list[float]]]:
     input_data = load_image(img, input_details)
     
     # Run Inference

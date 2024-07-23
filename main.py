@@ -1,4 +1,4 @@
-from ale_py import ALEInterface, roms
+from ale_py import ALEInterface, roms, Action
 import concurrent.futures
 import cv2
 import itertools
@@ -83,12 +83,13 @@ def run_neat_model(model, inputs) -> list[float]:
     return model.activate(inputs)
 
 
-def take_action(output, ale) -> int:
+def take_action(output: list[float], ale: ALEInterface) -> int:
     # Take an action and get the new state
-    legal_actions = ale.getLegalActionSet()
-    action_index = output.index(max(output))
+    legal_actions: list[Action] = ale.getLegalActionSet()
+    action_index: int = output.index(max(output))
+    if action_index >= 6: action_index += 5
     action = legal_actions[action_index]  # Choose an action (e.g., NOOP)
-    reward = ale.act(action)
+    reward: int = ale.act(action)
     return reward
 
 

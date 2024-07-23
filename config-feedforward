@@ -6,7 +6,7 @@ reset_on_extinction   = False
 
 [DefaultGenome]
 num_inputs            = 128
-num_outputs           = 18
+num_outputs           = 8
 num_hidden            = 0
 initial_connection    = full
 activation_default    = relu
