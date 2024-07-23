@@ -361,7 +361,7 @@ def main() -> None:
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1, checkpoint='neat-checkpoint-11',
-             extra_inputs=show_frames)
+             extra_inputs=[show_frames])
     # t0 = time.perf_counter()
     # results = run_in_parallel(run_steps)
     # t1 = time.perf_counter()
