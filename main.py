@@ -263,8 +263,10 @@ def add_incentive(ram, last_life, last_action, death_clock) -> tuple[float, bool
     incentive: float = 0
     end: bool = False
     
-    if last_action == [0]: death_clock += 1
-    else: death_clock = 0
+    if last_action == [0]:
+        death_clock += 1
+    else:
+        death_clock = 0
     if death_clock > 60 * 5: incentive, end = terminate(incentive, death_message='Dead - Stalling')
     
     match ram[58]:
@@ -304,7 +306,8 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
             output = run_neat_model(model, inputs)
             reward += take_action(output, ale)
             last_action = output
-        else: reward += take_action(last_action, ale)
+        else:
+            reward += take_action(last_action, ale)
         
         if display_frames:
             cv2.imshow('Image', ale.getScreenRGB())
@@ -328,11 +331,24 @@ def game_eval(genomes, config, func_params=None, run_func=run_frames) -> None:
         genome.fitness = results[i]
 
 
+def find_most_recent_checkpoint():
+    files = os.listdir('.')
+    best_file_num = None
+    best_file_name = None
+    for file in files:
+        if 'neat-checkpoint' in file:
+            current_file_num = int(file.split('-')[-1])
+            if best_file_num is None or current_file_num > best_file_num:
+                best_file_num = current_file_num
+                best_file_name = file
+    return best_file_name
+
+
 def main() -> None:
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
-    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1, checkpoint='neat-checkpoint-12',
-             extra_inputs=[{'display_frames': True}])
+    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
+             checkpoint=find_most_recent_checkpoint(), extra_inputs=[{'display_frames': True}])
 
 
 if __name__ == "__main__":
