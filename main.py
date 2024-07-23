@@ -9,6 +9,7 @@ from PIL import Image
 import subprocess
 import sys
 import tensorflow as tf
+from cv2 import VideoWriter
 from tensorflow.keras import layers, models
 import threading
 import time
@@ -252,63 +253,51 @@ def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100)
     return results
 
 
+def add_incentive(ram, last_life) -> tuple[float, bool, bool]:
+    incentive = 0
+    end: bool = False
+    match ram[58]:
+        case 0:
+            if ram[55] == 0: last_life = True
+            if ram[55] > 0 and last_life:
+                print('Dead')
+                incentive -= 100
+                end = True
+        case _:
+            incentive += ram[58] * .001
+    match ram[66]:
+        case 13:
+            incentive += 0.3
+        case 12:
+            incentive += 0.6
+        case 14:
+            incentive += 0.9
+    incentive -= .0001 * ram[43]
+    return incentive, last_life, end
+
+
 def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False, model=create_model(),
                display_frames=False, activation=models.Sequential.predict) -> int:
     ale = ale_init(game, suppress)
     reward = 0
     last_action = 0
     last_life = False
-    if display_frames:
-        number = 60 * 60  # Number of frames to capture
-        output_file = 'output.avi'  # Output video file name
-        
-        # Get the screen size from the first frame
-        img = ale.getScreenRGB()
-        height, width, layers = img.shape
-        
-        # Define the codec and create VideoWriter object
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter(output_file, fourcc, 20.0, (width, height))
     
     for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
-        match inputs[58]:
-            case 0:
-                if inputs[55] == 0: last_life = True
-                if inputs[55] > 0 and last_life:
-                    print('Dead')
-                    reward -= 100
-                    break
-            case _:
-                reward += inputs[58] * .001
-        match inputs[66]:
-            case 13:
-                reward += 0.3
-            case 12:
-                reward += 0.6
-            case 14:
-                reward += 0.9
-        reward -= .0001 * inputs[43]
+        incentive, last_life, end = add_incentive(inputs, last_life)
+        if end: break
+        reward += incentive
         if i % frames_per_step == 0:
             output = run_neat_model(model, inputs)
             reward += take_action(output, ale)
             last_action = output
-        else:
-            reward += take_action(last_action, ale)
+        else: reward += take_action(last_action, ale)
         if display_frames:
-            frame = ale.getScreenRGB()  # Capture the frame from ALE
-            out.write(frame)  # Write the frame to the video file
-            
-            # If you want to display the frame while saving to video
-            cv2.imshow('Image', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    if display_frames:
-        out.release()
-        cv2.destroyAllWindows()
-    if info:
-        print(f'Total Reward: {reward}')
-    # print(gc.collect())
+            cv2.imshow('Image', ale.getScreenRGB())
+            if cv2.waitKey(1) & 0xFF == ord('q'): break
+    if display_frames: cv2.destroyAllWindows()
+    if info: print(f'Total Reward: {reward}')
     return reward
 
 
@@ -330,12 +319,6 @@ def main() -> None:
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1, checkpoint='neat-checkpoint-11',
              extra_inputs=[{'display_frames': True}])
-    # t0 = time.perf_counter()
-    # results = run_in_parallel(run_steps)
-    # t1 = time.perf_counter()
-    # t = t1 - t0
-    # print(f'Time: {t//60:.0f}m {t%60:.1f}s')
-    # print(f'Results: {results}')
 
 
 if __name__ == "__main__":
