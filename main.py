@@ -1,7 +1,9 @@
 from ale_py import ALEInterface, roms
 import concurrent.futures
 import cv2
+import gc
 import itertools
+import neat
 import numpy as np
 import os
 from PIL import Image
@@ -13,7 +15,6 @@ import threading
 import time
 
 from neuroevolution import run_neat
-
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages
 
@@ -36,11 +37,11 @@ def load_rom():
 if __name__ == "__main__":
     load_rom()
 """
-
+    
     script_path = "temp_script.py"
     with open(script_path, "w") as script_file:
         script_file.write(script_content)
-
+    
     # Run the temporary script in a subprocess
     try:
         result = subprocess.run(
@@ -51,7 +52,7 @@ if __name__ == "__main__":
         )
     finally:
         os.remove(script_path)
-
+    
     if result.returncode != 0:
         raise RuntimeError(f"Failed to load ROM: {result.stderr}\nReturn Code: {result.returncode}")
     else:
@@ -71,7 +72,7 @@ def convert_game_name(game_name, to_camel_case=True) -> str:
 
 def ale_init(game, suppress=False) -> ALEInterface:
     ale: ALEInterface = ALEInterface()
-
+    
     if suppress:
         game = convert_game_name(game, False)
         load_rom_suppressed(game)
@@ -87,7 +88,7 @@ def load_tflite_model() -> tuple[list, list, tf.lite.Interpreter]:
     model_path: str = '2.tflite'
     interpreter: tf.lite.Interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
-
+    
     # Get input and output tensors
     input_details: list = interpreter.get_input_details()
     output_details: list = interpreter.get_output_details()
@@ -99,7 +100,7 @@ def load_image(img, input_details) -> np.array:
     target_size = (input_details[0]['shape'][2], input_details[0]['shape'][1])  # Get target size from input_details
     resized_img_pil = img_pil.resize(target_size, Image.LANCZOS)  # Resize the image with high-quality down sampling
     resized_img = np.array(resized_img_pil)  # Convert back to numpy array
-
+    
     # Ensure the image has the correct number of channels
     if len(resized_img.shape) == 2:  # Grayscale image
         resized_img = np.expand_dims(resized_img, axis=-1)
@@ -108,9 +109,9 @@ def load_image(img, input_details) -> np.array:
     if resized_img.shape[-1] == 3 and input_details[0]['shape'][-1] == 1:  # Convert RGB to grayscale
         resized_img = np.dot(resized_img[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint8)
         resized_img = np.expand_dims(resized_img, axis=-1)
-
+    
     input_data = np.expand_dims(resized_img, axis=0)  # Add batch dimension
-
+    
     return input_data
 
 
@@ -123,47 +124,48 @@ def display_bounding_boxes(img, boxes, classes, scores, scale_factor=3) -> None:
             end_point = (int(xmax * img.shape[1]), int(ymax * img.shape[0]))
             color = (255, 0, 0)  # BGR
             thickness = 1
-
+            
             # Draw the rectangle
             img = cv2.rectangle(img, start_point, end_point, color, thickness)
-
+            
             # Draw the label
             label = f'{int(classes[i])}, {scores[i]:.2f}'
             print(int(classes[i]), scores[i])
             img = cv2.putText(img, label, start_point, cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 1, cv2.LINE_AA)
-
+    
     # Resize the image to make it bigger
     width = int(img.shape[1] * scale_factor)
     height = int(img.shape[0] * scale_factor)
     dim = (width, height)
     img = cv2.resize(img, dim, interpolation=cv2.INTER_LINEAR)
-
+    
     # Display the image
     cv2.imshow("Image with Bounding Boxes", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
 
-def run_tflite(img, input_details, output_details, interpreter, info=False, display=False) -> tuple[list[float], list[int], list[list[float]]]:
+def run_tflite(img, input_details, output_details, interpreter, info=False, display=False) -> tuple[
+    list[float], list[int], list[list[float]]]:
     input_data = load_image(img, input_details)
-
+    
     # Run Inference
     interpreter.set_tensor(input_details[0]['index'], input_data)
     interpreter.invoke()
-
+    
     # Get the Results
     boxes = interpreter.get_tensor(output_details[0]['index'])[0]  # Bounding box coordinates
     classes = interpreter.get_tensor(output_details[1]['index'])[0]  # Class index
     scores = interpreter.get_tensor(output_details[2]['index'])[0]  # Confidence scores
-
+    
     if info:
         print("Boxes:", boxes)
         print("Classes:", classes)
         print("Scores:", scores)
-
+    
     if display:
         display_bounding_boxes(img, boxes, classes, scores)
-
+    
     return classes, scores, boxes
 
 
@@ -180,6 +182,10 @@ def run_model(model, inputs) -> list[float]:
     return list(model.predict(inputs, verbose=0)[0])
 
 
+def run_neat_model(model, inputs) -> list[float]:
+    return model.activate(inputs)
+
+
 def take_action(output, ale) -> int:
     # Take an action and get the new state
     legal_actions = ale.getLegalActionSet()
@@ -189,49 +195,37 @@ def take_action(output, ale) -> int:
     return reward
 
 
-def run_steps(steps=10, info=False, game='MontezumaRevenge', suppress=False) -> int:
-    ale = ale_init(game, suppress)
-    model = create_model()
-    reward = 0
-    for i in range(steps):
-        inputs = ale.getRAM().reshape(1, -1)
-        output = run_model(model, inputs)
-        reward += take_action(output, ale)
-    if info:
-        print(f'Total Reward: {reward}')
-    return reward
-
-
-def clear():
+def clear() -> None:
     sys.stdout.write('\r' + '\n' * 50 + '\r')
     sys.stdout.flush()
 
 
-def progress_bar(percent, bar_length=50):
+def progress_bar(percent, bar_length=50) -> str:
     progress_length = int(bar_length * percent)
     bar = '█' * progress_length + '░' * (bar_length - progress_length)
     return bar
 
 
-def load(stop_event, total_iterations, current_iteration, results):
+def load(stop_event, total_iterations, current_iteration, results) -> None:
     loading_signs = itertools.cycle(['|', '/', '-', '\\'])
     while not stop_event.is_set():
         percent_complete = (current_iteration[0] / total_iterations)
         bar = progress_bar(percent_complete)
-        sys.stdout.write(f"\r{next(loading_signs)} {bar} - {percent_complete*100:.1f}%, {100 or 1 in results}")
+        success = [0 for _ in range(current_iteration[0])] != results
+        sys.stdout.write(f"\r{next(loading_signs)} {bar} - {percent_complete * 100:.1f}%, {success}")
         sys.stdout.flush()
         time.sleep(0.5)  # Adjust the delay for visual effect
 
 
-def run_in_parallel(function, iterations=100):
+def run_in_parallel(function, iterations=100) -> list[float]:
     results = []
     stop_event = threading.Event()
     current_iteration = [0]
-
+    
     # Start the loading sign in a separate thread
     loader_thread = threading.Thread(target=load, args=(stop_event, iterations, current_iteration, results))
     loader_thread.start()
-
+    
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = [executor.submit(function) for _ in range(iterations)]
         for future in concurrent.futures.as_completed(futures):
@@ -244,7 +238,7 @@ def run_in_parallel(function, iterations=100):
                 print(f"Function raised an exception: {e}")
                 results.append(None)
             current_iteration[0] += 1  # Increment the iteration count
-
+    
     # Stop the loading sign
     stop_event.set()
     loader_thread.join()
@@ -252,13 +246,36 @@ def run_in_parallel(function, iterations=100):
     return results
 
 
+def run_steps(steps=100, info=False, game='MontezumaRevenge', suppress=False, model=create_model(),
+              activation=models.Sequential.predict) -> int:
+    ale = ale_init(game, suppress)
+    reward = 0
+    for i in range(steps):
+        inputs = ale.getRAM().reshape(1, -1)[0]
+        output = run_neat_model(model, inputs)
+        reward += take_action(output, ale)
+    if info:
+        print(f'Total Reward: {reward}')
+    # print(gc.collect())
+    return reward
+
+
+def game_eval(genomes, config) -> None:
+    for genome_id, genome in genomes:
+        net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
+        genome.fitness = run_steps(steps=60*60, model=net, activation=neat.nn.FeedForwardNetwork.activate)
+
+
 def main() -> None:
-    t0 = time.perf_counter()
-    results = run_in_parallel(run_steps)
-    t1 = time.perf_counter()
-    t = t1 - t0
-    print(f'Time: {t//60:.0f}m {t%60:.1f}s')
-    print(f'Results: {results}')
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config-feedforward')
+    run_neat(config_path, eval_func=game_eval)
+    # t0 = time.perf_counter()
+    # results = run_in_parallel(run_steps)
+    # t1 = time.perf_counter()
+    # t = t1 - t0
+    # print(f'Time: {t//60:.0f}m {t%60:.1f}s')
+    # print(f'Results: {results}')
 
 
 if __name__ == "__main__":
