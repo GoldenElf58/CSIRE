@@ -9,7 +9,6 @@ from PIL import Image
 import subprocess
 import sys
 import tensorflow as tf
-from cv2 import VideoWriter
 from tensorflow.keras import layers, models
 import threading
 import time
@@ -253,18 +252,28 @@ def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100)
     return results
 
 
-def add_incentive(ram, last_life) -> tuple[float, bool, bool]:
-    incentive = 0
+def terminate(incentive, death_message="Dead") -> tuple[bool, float]:
+    print(death_message)
+    incentive -= 100
+    end: bool = True
+    return end, incentive
+
+
+def add_incentive(ram, last_life, last_action, death_clock) -> tuple[float, bool, bool, int]:
+    incentive: float = 0
     end: bool = False
+    
+    if last_action == [0]: death_clock += 1
+    else: death_clock = 0
+    if death_clock > 60 * 5: incentive, end = terminate(incentive, death_message='Dead - Stalling')
+    
     match ram[58]:
         case 0:
             if ram[55] == 0: last_life = True
-            if ram[55] > 0 and last_life:
-                print('Dead')
-                incentive -= 100
-                end = True
+            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, death_message='Dead - Last Life')
         case _:
             incentive += ram[58] * .001
+    
     match ram[66]:
         case 13:
             incentive += 0.3
@@ -272,30 +281,35 @@ def add_incentive(ram, last_life) -> tuple[float, bool, bool]:
             incentive += 0.6
         case 14:
             incentive += 0.9
+    
     incentive -= .0001 * ram[43]
-    return incentive, last_life, end
+    return incentive, last_life, end, death_clock
 
 
 def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False, model=create_model(),
-               display_frames=False, activation=models.Sequential.predict) -> int:
-    ale = ale_init(game, suppress)
-    reward = 0
-    last_action = 0
-    last_life = False
+               display_frames=False, activation=models.Sequential.predict) -> float:
+    ale: ALEInterface = ale_init(game, suppress)
+    reward: float = 0
+    last_action: list[float] = [0]
+    last_life: bool = False
+    death_clock: int = 0
     
     for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
-        incentive, last_life, end = add_incentive(inputs, last_life)
+        incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock)
         if end: break
         reward += incentive
+        
         if i % frames_per_step == 0:
             output = run_neat_model(model, inputs)
             reward += take_action(output, ale)
             last_action = output
         else: reward += take_action(last_action, ale)
+        
         if display_frames:
             cv2.imshow('Image', ale.getScreenRGB())
             if cv2.waitKey(1) & 0xFF == ord('q'): break
+    
     if display_frames: cv2.destroyAllWindows()
     if info: print(f'Total Reward: {reward}')
     return reward
@@ -317,7 +331,7 @@ def game_eval(genomes, config, func_params=None, run_func=run_frames) -> None:
 def main() -> None:
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
-    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1, checkpoint='neat-checkpoint-11',
+    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1, checkpoint='neat-checkpoint-12',
              extra_inputs=[{'display_frames': True}])
 
 
