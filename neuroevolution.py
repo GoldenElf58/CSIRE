@@ -43,13 +43,18 @@ def XOR_eval(genomes, config, input_output_pairs):
             genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
 
 
-def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, display_best_genome=False, display_best_output=True,
-             display_best_fitness=True, checkpoints=False, iterations=1_000, checkpoint_interval=100):
+def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, display_best_genome=False,
+             display_best_output=True, display_best_fitness=True, checkpoints=False, iterations=1_000,
+             checkpoint_interval=100, checkpoint=None):
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                 config_path)
     
-    p = neat.Population(config)
+    if checkpoint and os.path.exists(checkpoint):
+        print("NEAT Checkpoint Loaded")
+        p = neat.Checkpointer.restore_checkpoint(checkpoint)
+    else:
+        p = neat.Population(config)
     
     p.add_reporter(TimedReporter(detail, interval=2))
     p.add_reporter(neat.StatisticsReporter())

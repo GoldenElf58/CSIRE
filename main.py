@@ -1,7 +1,6 @@
 from ale_py import ALEInterface, roms
 import concurrent.futures
 import cv2
-import gc
 import itertools
 import neat
 import numpy as np
@@ -263,15 +262,20 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
         inputs = ale.getRAM().reshape(1, -1)[0]
         match inputs[58]:
             case 0:
-                if inputs[55] > 0:
+                if inputs[55] == 0: last_life = True
+                if inputs[55] > 0 and last_life:
                     print('Dead')
                     reward -= 100
                     break
-            case _: reward += inputs[58] * .001
+            case _:
+                reward += inputs[58] * .001
         match inputs[66]:
-            case 13: reward += 0.3
-            case 12: reward += 0.6
-            case 14: reward += 0.9
+            case 13:
+                reward += 0.3
+            case 12:
+                reward += 0.6
+            case 14:
+                reward += 0.9
         reward -= .0001 * inputs[43]
         if i % frames_per_step == 0:
             output = run_neat_model(model, inputs)
@@ -285,14 +289,70 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     return reward
 
 
-def game_eval(genomes, config) -> None:
+def show_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False,
+                model=create_model(), activation=models.Sequential.predict) -> int:
+    ale = ale_init(game, suppress)
+    reward = 0
+    last_action = 0
+    number = 60 * 60  # Number of frames to capture
+    output_file = 'output.avi'  # Output video file name
+    
+    # Get the screen size from the first frame
+    img = ale.getScreenRGB()
+    height, width, layers = img.shape
+    
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(output_file, fourcc, 20.0, (width, height))
+    last_life = False
+    for i in range(frames):
+        inputs = ale.getRAM().reshape(1, -1)[0]
+        match inputs[58]:
+            case 0:
+                if inputs[55] == 0: last_life = True
+                if inputs[55] > 0 and last_life:
+                    print('Dead')
+                    reward -= 100
+                    break
+            case _:
+                reward += inputs[58] * .001
+        match inputs[66]:
+            case 13:
+                reward += 0.3
+            case 12:
+                reward += 0.6
+            case 14:
+                reward += 0.9
+        reward -= .0001 * inputs[43]
+        if i % frames_per_step == 0:
+            output = run_neat_model(model, inputs)
+            reward += take_action(output, ale)
+            last_action = output
+        else:
+            reward += take_action(last_action, ale)
+        frame = ale.getScreenRGB()  # Capture the frame from ALE
+        out.write(frame)  # Write the frame to the video file
+        
+        # If you want to display the frame while saving to video
+        cv2.imshow('Image', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    # Release everything if job is finished
+    out.release()
+    cv2.destroyAllWindows()
+    if info:
+        print(f'Total Reward: {reward}')
+    # print(gc.collect())
+    return reward
+
+
+def game_eval(genomes, config, run_func=run_frames) -> None:
     kwargs = []
     for _, genome in genomes:
         net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
         kwargs.append(
             {'frames': 60 * 60, 'frames_per_step': 3, 'model': net, 'activation': neat.nn.FeedForwardNetwork.activate})
-        # genome.fitness = run_steps(steps=60*60, model=net, activation=neat.nn.FeedForwardNetwork.activate)
-    results = run_in_parallel(run_frames, kwargs=kwargs, iterations=len(kwargs))
+    results = run_in_parallel(run_func, kwargs=kwargs, iterations=len(kwargs))
     for i, [_, genome] in enumerate(genomes):
         genome.fitness = results[i]
 
@@ -300,7 +360,8 @@ def game_eval(genomes, config) -> None:
 def main() -> None:
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
-    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1)
+    run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1, checkpoint='neat-checkpoint-11',
+             extra_inputs=show_frames)
     # t0 = time.perf_counter()
     # results = run_in_parallel(run_steps)
     # t1 = time.perf_counter()
