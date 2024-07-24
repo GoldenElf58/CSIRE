@@ -1,22 +1,28 @@
-from ale_py import ALEInterface, roms, Action
 import concurrent.futures
-import cv2
 import itertools
 import logging
-import neat
 import os
 import subprocess
 import sys
 import threading
 import time
 
-from tf_utils import create_model
+import cv2
+import neat
+from ale_py import ALEInterface, Action, roms
+
 from neuroevolution import run_neat
+from tf_utils import create_model
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages that flood console when running simulation
 
 
-def load_rom_suppressed(game) -> None:
+def load_rom_suppressed(game: str) -> None:
+    """
+    Attempts to load the game without any message to console (does not work when in parallel, may not work normally)
+    :param game: Name of the game to be loaded
+    :return: None
+    """
     # Create a temporary script to load the ROM
     script_content = f"""
 import os
@@ -56,7 +62,13 @@ if __name__ == "__main__":
         print(result.stdout)
 
 
-def convert_game_name(game_name, to_camel_case=True) -> str:
+def convert_game_name(game_name: str, to_camel_case=True) -> str:
+    """
+    Converts a game name (e.g. 'MontezumaRevenge') to or from camel case
+    :param game_name: String (e.g. 'MontezumaRevenge')
+    :param to_camel_case: Dictates whether the string is being converted to or from camel case
+    :return: String (e.g. 'montezuma_revenge') - Returns converted game name
+    """
     if to_camel_case:
         if '_' not in game_name: return game_name
         words: list[str] = game_name.split('_')
@@ -67,11 +79,17 @@ def convert_game_name(game_name, to_camel_case=True) -> str:
         return converted_name
 
 
-def ale_init(game, suppress=False) -> ALEInterface:
+def ale_init(game: str, suppress=False) -> ALEInterface:
+    """
+    Takes a game and loads it.
+    :param game: Name of the game
+    :param suppress: Whether the output to the console is suppressed or not (may not work)
+    :return: An ALEInterface with a game loaded
+    """
     ale: ALEInterface = ALEInterface()
     
     if suppress:
-        game = convert_game_name(game, False)
+        game: str = convert_game_name(game, False)
         load_rom_suppressed(game)
     else:
         game = convert_game_name(game, True)
@@ -81,10 +99,22 @@ def ale_init(game, suppress=False) -> ALEInterface:
 
 
 def run_neat_model(model, inputs) -> list[float]:
+    """
+    Runs a NEAT neural network and returns the results
+    :param model: FeedForwardNetwork; The NEAT model
+    :param inputs: Inputs to NEAT model (e.g. environment observations)
+    :return: Model results
+    """
     return model.activate(inputs)
 
 
 def take_action(action_index, ale: ALEInterface) -> int:
+    """
+    Takes an action in a given ALEInterface
+    :param action_index: Index of action to be taken (e.g. 1 is JUMP)
+    :param ale: ALEInterface with game loaded
+    :return: Reward from that action
+    """
     # Take an action and get the new state
     legal_actions: list[Action] = ale.getLegalActionSet()
     action = legal_actions[action_index]  # Choose an action (e.g., NOOP)
@@ -93,23 +123,47 @@ def take_action(action_index, ale: ALEInterface) -> int:
 
 
 def get_action_index(output: list[float]) -> int:
+    """
+    Takes in the outputs of the NEAT model and returns the action corresponding to the output with the highest value
+    :param output: The output of the NEAT model
+    :return: The index of the action to be taken
+    """
     action_index: int = output.index(max(output))
     if action_index >= 6: action_index += 5
     return action_index
 
 
 def clear() -> None:
+    """
+    Prints 50 lines to the console to essentially 'clear' it
+    :return: None
+    """
     sys.stdout.write('\r' + '\n' * 50 + '\r')
     sys.stdout.flush()
 
 
-def progress_bar(percent, bar_length=50) -> str:
+def progress_bar(percent: float, bar_length=50) -> str:
+    """
+    Returns a progress bar based on a percentage and bar length.
+    :param percent: Percentage of bar
+    :param bar_length: Length of bar
+    :return: Progress bar
+    """
     progress_length = int(bar_length * percent)
     bar = '█' * progress_length + '░' * (bar_length - progress_length)
     return bar
 
 
 def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
+    """
+    Shows a loading animation and other information while other tasks are running.
+    :param stop_event: When this function terminates (e.g. when the other tasks are over)
+    :param total_iterations: Total iterations into task (e.g. 50 iterations of function x)
+    :param current_iteration: Number of finished iterations (e.g. 23 iterations have been completed)
+    :param results: The fitnesses of the NEAT models, once they are finished
+    :param t0: The start time of the function
+    :return: None
+    """
     loader = itertools.cycle(['|', '/', '-', '\\'])
     while not stop_event.is_set():
         percent_complete = (current_iteration[0] / total_iterations)
@@ -124,6 +178,14 @@ def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
 
 
 def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100) -> list[float]:
+    """
+    Takes in a function, keyword arguments for that function, and a number of iterations, and runs that function in
+    parallel with those arguments for the given number of iterations
+    :param function: The function to be run in parallel
+    :param kwargs: A list of dictionaries of the arguments to be passed each function
+    :param iterations: The number of times the function needs to be run
+    :return: A list of the results of each individual run of the function
+    """
     results = []
     stop_event = threading.Event()
     current_iteration = [0]
@@ -157,6 +219,13 @@ def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100)
 
 
 def terminate(incentive, death_message="Dead", punishment=200) -> tuple[bool, float]:
+    """
+    Terminates/kills an agent playing a game (e.g. Montezuma's Revenge) and gives a punishment for that
+    :param incentive: The current incentive given to the agent
+    :param death_message: The message to print to the console when the agent's process terminates
+    :param punishment: The punishment given to the agent for being terminated before its time ends
+    :return: A tuple containing the 'end' boolean, which terminates the agent's process and the new incentive
+    """
     print(f'\n{death_message}')
     incentive -= punishment
     end: bool = True
@@ -164,6 +233,16 @@ def terminate(incentive, death_message="Dead", punishment=200) -> tuple[bool, fl
 
 
 def add_incentive(ram, last_life: bool, last_action: int, death_clock: int) -> tuple[float, bool, bool, int]:
+    """
+    Takes in the game state and adds an incentive to the environment reward. This function also kills/terminates the
+    agent's process if it stalls for more than 5 seconds or dies on its last life.
+    :param ram: The RAM of the game environment
+    :param last_life: Whether the agent is on its last life
+    :param last_action: The last action the agent took
+    :param death_clock: The number of frames the agent has taken the 'NOOP' action
+    :return: A typle containing: the new incentive for the agent, whether the agent is on its last life, the 'end'
+    boolean that dictates whther to terminate the agent, and the amount of frames the agent has taken the 'NOOP' action
+    """
     incentive: float = 0
     end: bool = False
     
@@ -194,6 +273,18 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int) -> t
 
 def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False, model=create_model(),
                display_frames=False, activation=neat.nn.FeedForwardNetwork.activate) -> float:
+    """
+    A function that lets an agent play a given game for a given number of steps.
+    :param frames: Number of frames or steps for the agent to take actions
+    :param info: Flag dictating whether the reward is printed to the console at the end of the process
+    :param frames_per_step: The number of frames the agent's chosen action is applied to before it gets to decide again
+    :param game: The name of the game the agent is playing (e.g. 'MontezumaRevenge')
+    :param suppress: Whether to suppress the ALE initialization text in the console (may not work)
+    :param model: The NEAT model that will play the game
+    :param display_frames: Whether the agent's gameplay will be shown to the user in a seperate window
+    :param activation: The activation function of the agent (not implemented)
+    :return: The total reward over all steps the agent recieved
+    """
     ale: ALEInterface = ale_init(game, suppress)
     reward: float = 0
     last_action: int = 0
@@ -224,6 +315,14 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
 
 
 def game_eval(genomes, config, func_params=None, run_func=run_frames) -> None:
+    """
+    The evaluation function for a set of genomes. Takes in the genomes and sets their fitness.
+    :param genomes: A list of the genomes to be tested
+    :param config: The configuration of the genomes
+    :param func_params: The parameters to be passed to the 'run_frames' function
+    :param run_func: The function to test the genomes in
+    :return: None
+    """
     if func_params is None:
         func_params = {}
     kwargs = []
@@ -237,6 +336,11 @@ def game_eval(genomes, config, func_params=None, run_func=run_frames) -> None:
 
 
 def find_most_recent_checkpoint():
+    """
+    Returns the name of the most recent checkpoint file (based on the number at the end of the file name (e.g.
+    'neat-checkpoint-172')
+    :return: Name of the most recent checkpoint file
+    """
     files = os.listdir('.')
     best_file_num = None
     best_file_name = None
@@ -250,6 +354,10 @@ def find_most_recent_checkpoint():
     
 
 def setup_logging() -> logging.Logger:
+    """
+    Sets up the loggin configuration and returns a logger
+    :return: A logger that will be used
+    """
     # Configure logging
     logging.basicConfig(level=logging.DEBUG, format='%(message)s')
     stdout_handler = logging.StreamHandler()
@@ -269,6 +377,10 @@ def setup_logging() -> logging.Logger:
 
 
 def main() -> None:
+    """
+    The main function of the program
+    :return: None
+    """
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,

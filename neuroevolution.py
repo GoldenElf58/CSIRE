@@ -1,6 +1,11 @@
-import neat
+"""
+This file is used for the genetic algorithm NEAT
+"""
+
 import os
 import time
+
+import neat
 
 
 class TimedReporter(neat.StdOutReporter):
@@ -34,6 +39,13 @@ class TimedReporter(neat.StdOutReporter):
 
 
 def XOR_eval(genomes, config, input_output_pairs):
+    """
+    An example XOR evaluation function that can be used for evaluating different genomes
+    :param genomes: The genomes to be evaluated
+    :param config: The configuration of the genomes
+    :param input_output_pairs: The pairs of inputs and correct outputs
+    :return: A list of the fitnesses of the genomes
+    """
     for genome_id, genome in genomes:
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         genome.fitness = 4.0  # Max fitness
@@ -43,7 +55,13 @@ def XOR_eval(genomes, config, input_output_pairs):
             genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
 
 
-def create_genome_from_string(genome_str, config):
+def create_genome_from_string(genome_str, config) -> neat.DefaultGenome:
+    """
+    Returns a renome based on a string that defines the genome. The user may have copied this from the console.
+    :param genome_str: The string of the genome
+    :param config: The configuration file of the genome (not used)
+    :return: The genome in the format of the DefaultGenome class
+    """
     genome = neat.DefaultGenome(key=0)
     genome.connections.clear()
     genome.nodes.clear()
@@ -78,8 +96,25 @@ def create_genome_from_string(genome_str, config):
 
 
 def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, display_best_genome=False,
-             display_best_output=True, display_best_fitness=True, checkpoints=False, iterations=1_000,
-             checkpoint_interval=100, checkpoint=None, insert_genome=False, genome_str=None):
+             display_best_output=True, display_best_fitness=True, checkpoint=None, checkpoints=False,
+             checkpoint_interval=100, generations=1_000, insert_genome=False, genome_str=None):
+    """
+    Runs NEAT based on many parameters:
+    :param config_path: The path to the configuration file (e.g. 'config-feedforward')
+    :param extra_inputs: Extra inputs to be given to the evaluation function
+    :param eval_func: The evaluation function
+    :param detail: Whether to show more or less detail about each generation in the console
+    :param display_best_genome: Whether to display the best genome at the end of training in the console
+    :param display_best_output: Whether to display the output of the best genome at the end of training (only for XOR)
+    :param display_best_fitness: Whether to display the fitness of the best genome at the end of training in the conole
+    :param checkpoint: A previous checkpoint that will be loaded in, instead of a new generation
+    :param checkpoints: Whether to create checkpoints of the generations
+    :param checkpoint_interval: The number of generations minus one between each checkpoint
+    :param generations: The number of generations to train the genomes
+    :param insert_genome: Whether to insert a genome into the start generation
+    :param genome_str: The string of a genome to be inserted into the start generation
+    :return: The best genome in the final generation
+    """
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                 config_path)
@@ -1121,7 +1156,7 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
         if extra_inputs is None: eval_func(genomes, eval_config)
         else: eval_func(genomes, eval_config, *extra_inputs)
     
-    winner = p.run(eval_func_compressed, iterations)
+    winner = p.run(eval_func_compressed, generations)
     
     if display_best_genome or winner.fitness >= config.fitness_threshold: print(f'\nBest genome:\n{winner}')
     
@@ -1143,7 +1178,11 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     return winner
 
 
-def test_neat():
+def test_neat() -> None:
+    """
+    A function that tests the NEAT algorithm on the XOR function
+    :return: None
+    """
     input_output_pairs = [
         ([(0, 0)], [(0,)]),
         ([(0, 1)], [(1,)]),
@@ -1156,7 +1195,11 @@ def test_neat():
     run_neat(config_path, extra_inputs=[input_output_pairs])
 
 
-def main():
+def main() -> None:
+    """
+    The main function of the program
+    :return: None
+    """
     test_neat()
 
 
