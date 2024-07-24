@@ -53,6 +53,7 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     if checkpoint and os.path.exists(checkpoint):
         print("NEAT Checkpoint Loaded")
         p = neat.Checkpointer.restore_checkpoint(checkpoint)
+        p.config = config
     else:
         p = neat.Population(config)
     
@@ -85,6 +86,8 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
                 output = winner_net.activate(xi)
                 print(f"input {xi}, expected output {xo}, got {[round(x, 2) for x in output]}")
         except RuntimeError as e:
+            print(f'Could not display input output pairs. Error: {e}')
+        except ValueError as e:
             print(f'Could not display input output pairs. Error: {e}')
     
     return winner

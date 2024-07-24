@@ -1,7 +1,11 @@
-from ale_py import ALEInterface, roms
+import time
+
+from ale_py import ALEInterface, roms, Action
 from collections import defaultdict
+import cv2
 import gym
 from gym.utils.play import play
+import neat
 import numpy as np
 import os
 import pygame
@@ -158,14 +162,144 @@ def ale_init(game, suppress=False) -> ALEInterface:
     return ale
 
 
+def human_input(fps=60) -> int:
+    keys_to_action = {
+        (pygame.K_SPACE,): 1,
+        (pygame.K_UP,): 2,
+        (pygame.K_RIGHT,): 3,
+        (pygame.K_LEFT,): 4,
+        (pygame.K_DOWN,): 5,
+        (pygame.K_UP, pygame.K_RIGHT): 6,
+        (pygame.K_UP, pygame.K_LEFT): 7,
+        (pygame.K_DOWN, pygame.K_RIGHT): 8,
+        (pygame.K_DOWN, pygame.K_LEFT): 9,
+        (pygame.K_UP, pygame.K_SPACE): 10,
+        (pygame.K_RIGHT, pygame.K_SPACE): 11,
+        (pygame.K_LEFT, pygame.K_SPACE): 12,
+        (pygame.K_DOWN, pygame.K_SPACE): 13,
+        (pygame.K_UP, pygame.K_RIGHT, pygame.K_SPACE): 14,
+        (pygame.K_UP, pygame.K_LEFT, pygame.K_SPACE): 15,
+        (pygame.K_DOWN, pygame.K_RIGHT, pygame.K_SPACE): 16,
+        (pygame.K_DOWN, pygame.K_LEFT, pygame.K_SPACE): 17,
+    }
+    
+    # Initialize pygame and create a small window to capture events
+    pygame.init()
+    screen = pygame.display.set_mode((100, 100))
+    pygame.display.set_caption("Human Input Capture")
+    
+    clock = pygame.time.Clock()  # Create a clock object to control the frame rate
+    
+    while True:
+        pressed_keys = pygame.key.get_pressed()
+        active_keys = tuple(key for key, pressed in enumerate(pressed_keys) if pressed)
+        
+        for key_combo in keys_to_action:
+            if all(pressed_keys[key] for key in key_combo) and len(active_keys) == len(key_combo):
+                action = keys_to_action[key_combo]
+                clock.tick(fps)
+                return action  # Return the action without closing the window
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return 0  # Exit function if window is closed
+        
+        clock.tick(fps)
+        pygame.display.update()
+        return 0
+
+
+def take_action(output: int, ale: ALEInterface) -> int:
+    # Take an action and get the new state
+    legal_actions: list[Action] = ale.getLegalActionSet()
+    action = legal_actions[output]  # Choose an action (e.g., NOOP)
+    reward: int = ale.act(action)
+    return reward
+
+
+def terminate(incentive, death_message="Dead") -> tuple[bool, float]:
+    print(death_message)
+    incentive -= 100
+    end: bool = True
+    return end, incentive
+
+
+def add_incentive(ram, last_life, last_action, death_clock) -> tuple[float, bool, bool, int]:
+    incentive: float = 0
+    end: bool = False
+    
+    if last_action == 0:
+        death_clock += 1
+    else:
+        death_clock = 0
+    if death_clock > 60 * 60: incentive, end = terminate(incentive, death_message='Dead - Stalling')
+    
+    match ram[58]:
+        case 0:
+            if ram[55] == 0: last_life = True
+            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, death_message='Dead - Last Life')
+        case _:
+            incentive += ram[58] * .001
+    
+    match ram[66]:
+        case 13:
+            incentive += 0.3
+        case 12:
+            incentive += 0.6
+        case 14:
+            incentive += 0.9
+    
+    incentive -= .0001 * ram[43]
+    return incentive, last_life, end, death_clock
+
+
+def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False,
+               display_frames=False) -> float:
+    ale: ALEInterface = ale_init(game, suppress)
+    reward: float = 0
+    last_action: int = 0
+    last_life: bool = False
+    death_clock: int = 0
+    
+    for i in range(frames):
+        inputs = ale.getRAM().reshape(1, -1)[0]
+        incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock)
+        if end: break
+        reward += incentive
+        
+        if i % frames_per_step == 0:
+            output = human_input()
+            reward += take_action(output, ale)
+            last_action = output
+        else:
+            reward += take_action(last_action, ale)
+        
+        if display_frames:
+            cv2.imshow('Image', ale.getScreenRGB())
+            if cv2.waitKey(1) & 0xFF == ord('q'): break
+    
+    if display_frames: cv2.destroyAllWindows()
+    if info: print(f'Total Reward: {reward}')
+    return reward
+
+
 def main():
-    choice = input("Test NEAT (N) or play game (G)?  ").lower()
+    choice = input("Test NEAT (N/n) or play game (G/g)?  ").lower()
+    t0 = time.perf_counter()
     if choice == 'n':
         test_neat()
     elif choice == 'g':
-        play_game()
+        choice = input("Gym environment (G/g) or same as agents(A/a)?  ").lower()
+        t0 = time.perf_counter()
+        if choice == 'g': play_game()
+        elif choice == 'a': run_frames(frames=60*60, info=True, frames_per_step=2, display_frames=True)
+        else: print("Invalid choice. Try again.")
     else:
         print("Invalid choice. Try again.")
+    t1 = time.perf_counter()
+    te = t1 - t0
+    print(f'Time: {te:.2f}s')
 
 
 if __name__ == "__main__":
