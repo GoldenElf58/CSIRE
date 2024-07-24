@@ -292,9 +292,12 @@ def main():
     elif choice == 'g':
         choice = input("Gym environment (G/g) or same as agents(A/a)?  ").lower()
         t0 = time.perf_counter()
-        if choice == 'g': play_game()
-        elif choice == 'a': run_frames(frames=60*60, info=True, frames_per_step=2, display_frames=True)
-        else: print("Invalid choice. Try again.")
+        if choice == 'g':
+            play_game(game='ALE/MontezumaRevenge-ram-v5')
+        elif choice == 'a':
+            run_frames(frames=60 * 60, info=True, frames_per_step=1, display_frames=True)
+        else:
+            print("Invalid choice. Try again.")
     else:
         print("Invalid choice. Try again.")
     t1 = time.perf_counter()
