@@ -355,7 +355,7 @@ def find_most_recent_checkpoint():
 
 def setup_logging() -> logging.Logger:
     """
-    Sets up the loggin configuration and returns a logger
+    Sets up the loggin configuration and returns a logger.
     :return: A logger that will be used
     """
     # Configure logging
@@ -392,6 +392,8 @@ if __name__ == "__main__":
     print('Program Started')
     main()
 
+
+# Below are two successful genomes copied from the console
 """
 Key: 2954
 Fitness: 874.3104999999906

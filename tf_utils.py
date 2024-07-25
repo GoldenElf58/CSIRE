@@ -34,7 +34,7 @@ def load_image(img, input_details) -> np.array:
     """
     img_pil = Image.fromarray(img)  # Convert numpy array to PIL Image
     target_size = (input_details[0]['shape'][2], input_details[0]['shape'][1])  # Get target size from input_details
-    resized_img_pil = img_pil.resize(target_size, Image.LANCZOS)  # Resize the image with high-quality down sampling
+    resized_img_pil = img_pil.resize(target_size, Image.Resampling.LANCZOS)  # Resize the image with down sampling
     resized_img = np.array(resized_img_pil)  # Convert back to numpy array
     
     # Ensure the image has the correct number of channels

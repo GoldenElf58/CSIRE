@@ -32,7 +32,7 @@ def play_game(game='MontezumaRevenge-v4') -> None:
     :param game: The name of the game (e.g. 'MonteumaRevenge-v4')
     :return: Non
     """
-    env = gym.make(game, render_mode='rgb_array')
+    env: gym.Env = gym.make(game, render_mode='rgb_array')
     keys_to_action = {
         (pygame.K_SPACE,): 1,
         (pygame.K_UP,): 2,
@@ -57,7 +57,18 @@ def play_game(game='MontezumaRevenge-v4') -> None:
     ram_changes = defaultdict(lambda: np.zeros(128, dtype=int))  # Track changes per action
     action_counts = defaultdict(int)  # Track the number of times each action was pressed
     
-    def callback(obs_t, obs_tp1, action, rew, terminated, truncated, info):
+    def callback(obs_t, obs_tp1, action, rew, terminated, truncated, info) -> None:
+        """
+        Prints the RAM bytes in the console every frame, each byte formatted with different colors
+        :param obs_t: Not used.
+        :param obs_tp1: Not used.
+        :param action: Action taken by the user.
+        :param rew: Not used.
+        :param terminated: Not used.
+        :param truncated: Not used.
+        :param info: Not used.
+        :return: None
+        """
         nonlocal previous_ram
         
         # Get RAM data

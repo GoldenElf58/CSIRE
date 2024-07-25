@@ -6,6 +6,7 @@ import os
 import time
 
 import neat
+import neat.genes
 
 
 class TimedReporter(neat.StdOutReporter):
@@ -77,7 +78,7 @@ def create_genome_from_string(genome_str, config) -> neat.DefaultGenome:
                 response = float(attributes[1].split('=')[1])
                 activation = attributes[2].split('=')[1].strip()
                 aggregation = attributes[3].split('=')[1].strip()
-                node_gene = neat.DefaultNodeGene(key)
+                node_gene = neat.genes.DefaultNodeGene(key)
                 node_gene.bias = bias
                 node_gene.response = response
                 node_gene.activation = activation
@@ -88,7 +89,7 @@ def create_genome_from_string(genome_str, config) -> neat.DefaultGenome:
                 attributes = line.split('=')[1].split(',')
                 weight = float(attributes[0].split('=')[1])
                 enabled = attributes[1].split('=')[1].strip() == 'True'
-                connection_gene = neat.DefaultConnectionGene(key)
+                connection_gene = neat.genes.DefaultConnectionGene(key)
                 connection_gene.weight = weight
                 connection_gene.enabled = enabled
                 genome.connections[key] = connection_gene
@@ -115,15 +116,16 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     :param genome_str: The string of a genome to be inserted into the start generation
     :return: The best genome in the final generation
     """
-    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                config_path)
+    config: neat.config.Config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                                    neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                                    config_path)
     
     if checkpoint and os.path.exists(checkpoint):
         print("NEAT Checkpoint Loaded")
         p = neat.Checkpointer.restore_checkpoint(checkpoint)
         p.config = config
-    else: p = neat.Population(config)
+    else:
+        p = neat.Population(config)
     
     if insert_genome:
         if genome_str is None: genome_str = """
@@ -1153,8 +1155,10 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     if checkpoints: p.add_reporter(neat.Checkpointer(checkpoint_interval))
     
     def eval_func_compressed(genomes, eval_config):
-        if extra_inputs is None: eval_func(genomes, eval_config)
-        else: eval_func(genomes, eval_config, *extra_inputs)
+        if extra_inputs is None:
+            eval_func(genomes, eval_config)
+        else:
+            eval_func(genomes, eval_config, *extra_inputs)
     
     winner = p.run(eval_func_compressed, generations)
     
