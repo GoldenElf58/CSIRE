@@ -98,7 +98,7 @@ def create_genome_from_string(genome_str, config) -> neat.DefaultGenome:
 
 def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, display_best_genome=False,
              display_best_output=True, display_best_fitness=True, checkpoint=None, checkpoints=False,
-             checkpoint_interval=100, generations=1_000, insert_genome=False, genome_str=None):
+             checkpoint_interval=100, generations=1_000, insert_genomes=False, genome_strs=None):
     """
     Runs NEAT based on many parameters:
     :param config_path: The path to the configuration file (e.g. 'config-feedforward')
@@ -112,8 +112,8 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     :param checkpoints: Whether to create checkpoints of the generations
     :param checkpoint_interval: The number of generations minus one between each checkpoint
     :param generations: The number of generations to train the genomes
-    :param insert_genome: Whether to insert a genome into the start generation
-    :param genome_str: The string of a genome to be inserted into the start generation
+    :param insert_genomes: Whether to insert genomes into the start generation
+    :param genome_strs: The strings of the genomes to be inserted into the start generation
     :return: The best genome in the final generation
     """
     config: neat.config.Config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
@@ -127,8 +127,8 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
     else:
         p = neat.Population(config)
     
-    if insert_genome:
-        if genome_str is None: genome_str = """
+    if insert_genomes:
+        if genome_strs is None: genome_strs = ["""
         Nodes:
         DefaultNodeGene(key=0, bias=-1.95087563516349, response=1.0, activation=relu, aggregation=sum)
         DefaultNodeGene(key=1, bias=2.1880162934634884, response=1.0, activation=relu, aggregation=sum)
@@ -1146,9 +1146,10 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
         DefaultConnectionGene(key=(605, 1), weight=-0.4274235563164952, enabled=True)
         DefaultConnectionGene(key=(622, 7), weight=-1.3307676822822812, enabled=True)
 
-        """
-        genome = create_genome_from_string(genome_str, config)
-        p.population[genome.key] = genome
+        """]
+        for genome_str in genome_strs:
+            genome = create_genome_from_string(genome_str, config)
+            p.population[genome.key] = genome
     
     p.add_reporter(TimedReporter(detail, interval=2))
     p.add_reporter(neat.StatisticsReporter())
