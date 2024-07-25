@@ -2,7 +2,6 @@ import concurrent.futures
 import itertools
 import logging
 import os
-import subprocess
 import sys
 import threading
 import time
@@ -15,51 +14,6 @@ from neuroevolution import run_neat
 from tf_utils import create_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages that flood console when running simulation
-
-
-def load_rom_suppressed(game: str) -> None:
-    """
-    Attempts to load the game without any message to console (does not work when in parallel, may not work normally)
-    :param game: Name of the game to be loaded
-    :return: None
-    """
-    # Create a temporary script to load the ROM
-    script_content = f"""
-import os
-from ale_py import ALEInterface, roms
-
-def load_rom():
-    ale = ALEInterface()
-    available_roms = roms.get_all_rom_ids()
-    if '{game}' in available_roms:
-        rom_path = roms.get_rom_path('{game}')
-        ale.loadROM(rom_path)
-    else:
-        raise ValueError(f'ROM for game {game} not supported.\\nSupported ROMs: {{available_roms}}')
-
-if __name__ == "__main__":
-    load_rom()
-"""
-    
-    script_path = "temp_script.py"
-    with open(script_path, "w") as script_file:
-        script_file.write(script_content)
-    
-    # Run the temporary script in a subprocess
-    try:
-        result = subprocess.run(
-            ["python", script_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-    finally:
-        os.remove(script_path)
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to load ROM: {result.stderr}\nReturn Code: {result.returncode}")
-    else:
-        print(result.stdout)
 
 
 def convert_game_name(game_name: str, to_camel_case=True) -> str:
@@ -79,23 +33,27 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
         return converted_name
 
 
-def ale_init(game: str, suppress=False) -> ALEInterface:
+def ale_init(game: str, repeat_action_probability=0, visualize=False, frame_skip=0, seed=123) -> ALEInterface:
     """
     Takes a game and loads it.
     :param game: Name of the game
-    :param suppress: Whether the output to the console is suppressed or not (may not work)
+    :param repeat_action_probability: Probability to repeat the action the next frame, regardless of the agent's choice
+    :param visualize: Whether to visualize the game interaction
+    :param frame_skip: Number of times to repeat an action without observing
+    :param seed: Random seed
     :return: An ALEInterface with a game loaded
     """
     ale: ALEInterface = ALEInterface()
     ale.setLoggerMode(LoggerMode.Error)
     
-    if suppress:
-        game: str = convert_game_name(game, False)
-        load_rom_suppressed(game)
-    else:
-        game = convert_game_name(game, True)
-        rom = getattr(roms, game)
-        ale.loadROM(rom)
+    ale.setFloat('repeat_action_probability', repeat_action_probability)
+    ale.setBool('display_screen', visualize)
+    ale.setInt('frame_skip', frame_skip)
+    if seed is not None: ale.setInt('random_seed', seed)
+    
+    game = convert_game_name(game, True)
+    rom = getattr(roms, game)
+    ale.loadROM(rom)
     return ale
 
 
@@ -139,7 +97,7 @@ def clear() -> None:
     Prints 50 lines to the console to essentially 'clear' it
     :return: None
     """
-    sys.stdout.write('\r' + '\n' * 50 + '\r')
+    sys.stdout.write('\r' + '\n' * 25 + '\r')
     sys.stdout.flush()
 
 
@@ -234,8 +192,8 @@ def terminate(incentive, show_death_message=False, death_message="Dead", punishm
     return end, incentive
 
 
-def add_incentive(ram, last_life: bool, last_action: int, death_clock: int,
-                  show_death_message=False) -> tuple[float, bool, bool, int]:
+def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, give_incentive: bool = False,
+                  show_death_message: bool = False) -> tuple[float, bool, bool, int]:
     """
     Takes in the game state and adds an incentive to the environment reward. This function also kills/terminates the
     agent's process if it stalls for more than 5 seconds or dies on its last life.
@@ -243,6 +201,7 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int,
     :param last_life: Whether the agent is on its last life
     :param last_action: The last action the agent took
     :param death_clock: The number of frames the agent has taken the 'NOOP' action
+    :param give_incentive: Whether to give the agent an incentive in addition to its reward
     :param show_death_message: Whether to print a death message to the console when the agent dies
     :return: A typle containing: the new incentive for the agent, whether the agent is on its last life, the 'end'
     boolean that dictates whther to terminate the agent, and the amount of frames the agent has taken the 'NOOP' action
@@ -273,6 +232,7 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int,
             incentive += 0.9
     
     incentive -= .0001 * ram[43]
+    if not give_incentive: incentive = 0
     return incentive, last_life, end, death_clock
 
 
@@ -1408,8 +1368,7 @@ DefaultConnectionGene(key=(-1, 7), weight=-0.9604750682578211, enabled=True)
 DefaultConnectionGene(key=(605, 1), weight=-0.4274235563164952, enabled=True)
 DefaultConnectionGene(key=(622, 7), weight=-1.3307676822822812, enabled=True)
 
-""",
-                          """
+""", """
 Best genome:
 Key: 3250
 Fitness: 117.40539999999936
