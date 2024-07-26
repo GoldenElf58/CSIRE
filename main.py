@@ -2,17 +2,27 @@ import concurrent.futures
 import itertools
 import logging
 import os
+import pickle
 import sys
 import threading
 import time
 
 import neat
-from ale_py import ALEInterface, Action, LoggerMode, roms
+from ale_py import Action, ALEInterface, ALEState, LoggerMode, roms
 
 from neuroevolution import run_neat
 from tf_utils import create_model
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress informational messages that flood console when running simulation
+
+
+def load_specific_state(filename: str):
+    if filename in os.listdir('.'):
+        filepath = os.path.join('.', filename)
+        with open(filepath, 'rb') as file:
+            return pickle.load(file)
+    
+    return None  # No matching files found
 
 
 def convert_game_name(game_name: str, to_camel_case=True) -> str:
@@ -33,7 +43,7 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
 
 
 def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 0, visualize: bool = False,
-             frame_skip: int = 0, seed: int = 123) -> ALEInterface:
+             frame_skip: int = 0, seed: int = 123, load_state=None) -> ALEInterface:
     """
     Takes a game and loads it.
     :param game: Name of the game
@@ -42,9 +52,11 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     :param visualize: Whether to visualize the game interaction
     :param frame_skip: Number of times to repeat an action without observing
     :param seed: Random seed
+    :param load_state: File to load a save state from
     :return: An ALEInterface with a game loaded
     """
     ale: ALEInterface = ALEInterface()
+    
     if suppress: ale.setLoggerMode(LoggerMode.Error)
     
     ale.setFloat('repeat_action_probability', repeat_action_probability)
@@ -55,6 +67,13 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     game = convert_game_name(game, True)
     rom = getattr(roms, game)
     ale.loadROM(rom)
+    
+    if load_state is not None:
+        env_data: ALEState = load_specific_state(load_state)
+        ale.restoreState(env_data)
+        if not suppress: print(f"Game state loaded from {load_state}")
+        return ale
+    
     return ale
 
 

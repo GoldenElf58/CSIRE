@@ -11,7 +11,7 @@ from typing import Any
 import gym
 import numpy as np
 import pygame
-from ale_py import ALEInterface, ALEState, Action, LoggerMode, roms
+from ale_py import Action, ALEInterface, ALEState, LoggerMode, roms
 from collections import defaultdict
 from gym.utils.play import play
 
@@ -128,7 +128,7 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
 
 
 def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 0, visualize: bool = False,
-             frame_skip: int = 0, seed: int = 123) -> ALEInterface:
+             frame_skip: int = 0, seed: int = 123, load_state=None) -> ALEInterface:
     """
     Takes a game and loads it.
     :param game: Name of the game
@@ -137,9 +137,11 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     :param visualize: Whether to visualize the game interaction
     :param frame_skip: Number of times to repeat an action without observing
     :param seed: Random seed
+    :param load_state: File to load a save state from
     :return: An ALEInterface with a game loaded
     """
     ale: ALEInterface = ALEInterface()
+    
     if suppress: ale.setLoggerMode(LoggerMode.Error)
     
     ale.setFloat('repeat_action_probability', repeat_action_probability)
@@ -150,6 +152,13 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     game = convert_game_name(game, True)
     rom = getattr(roms, game)
     ale.loadROM(rom)
+    
+    if load_state is not None:
+        env_data: ALEState = load_specific_state(load_state)
+        ale.restoreState(env_data)
+        if not suppress: print(f"Game state loaded from {load_state}")
+        return ale
+    
     return ale
 
 
@@ -172,6 +181,14 @@ def save_state(data: Any, base_filename: str = "save-state") -> None:
     filename = f"{base_filename}-{next_number}"
     filepath = os.path.join('.', filename)  # Construct file path [1, 2]
     
+    with open(filepath, "wb") as file:
+        pickle.dump(data, file)
+
+
+def save_specific_state(data: Any, filename: str, choice: str = 'Y'):
+    if filename in os.listdir('.'): choice: str = input("This file already exists. Overwrite it? (Y/n)\n")
+    if choice != 'Y': return
+    filepath = os.path.join('.', filename)
     with open(filepath, "wb") as file:
         pickle.dump(data, file)
 
@@ -201,14 +218,9 @@ def load_latest_state(base_filename="save-state"):
     return None  # No matching files found
 
 
-def load_specific_state(state_index: int, base_filename="save-state"):
-    specific_filename = None
-    for filename in os.listdir('.'):
-        if f'{base_filename}-{state_index}' in filename:
-            specific_filename = filename
-    
-    if specific_filename is not None:
-        filepath = os.path.join('.', specific_filename)
+def load_specific_state(filename: str):
+    if filename in os.listdir('.'):
+        filepath = os.path.join('.', filename)
         with open(filepath, 'rb') as file:
             return pickle.load(file)
     
@@ -257,22 +269,34 @@ def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
             pygame.quit()
             return 0, ale  # Exit function if window is closed
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_s:
+            if event.key == pygame.K_s:  # Save state
                 env_data: ALEState = ale.cloneState()
                 save_state(env_data)
                 print("Game state saved.")
-            elif event.key == pygame.K_l:
+            elif event.key == pygame.K_l:  # Load latest state
                 env_data: ALEState = load_latest_state()
                 ale.restoreState(env_data)
                 print("Game state loaded.")
-            elif event.key == pygame.K_d:
+            elif event.key == pygame.K_d:  # Load specific state
                 try:
-                    game_state_index: int = int(input("Save State #: "))
-                    env_data: ALEState = load_specific_state(game_state_index)
+                    choice: str = input("Load with custom filename (y/n)?  ").lower()
+                    if choice == 'y':
+                        filename: str = input("Filename:  ")
+                    else:
+                        filename: str = 'save-state-' + input("Save State #:  ")
+                    env_data: ALEState = load_specific_state(filename)
                     ale.restoreState(env_data)
-                    print(f"Game state {game_state_index} loaded")
+                    print(f"Game state loaded from {filename}")
                 except (ValueError, TypeError) as e:
                     print(f"Unable to load state. Error: {e}")
+            elif event.key == pygame.K_a:  # Save specific state
+                try:
+                    env_data: ALEState = ale.cloneState()
+                    filename: str = input("Save to file:  ")
+                    save_specific_state(env_data, filename)
+                    print(f"Game state saved to {filename}")
+                except (ValueError, TypeError) as e:
+                    print(f"Unable to save state. Error: {e}")
         
         pygame.display.update()
         clock.tick(fps)
@@ -361,7 +385,7 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
 
 
 def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
-               visualize=False, show_death_message=False) -> float:
+               visualize=False, show_death_message=False, load_state=None) -> float:
     """
     Runs a given game for a specified number of frames based on user input
     :param frames: Number of frames/steps to run the game for
@@ -371,9 +395,10 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     :param suppress: Whether to suppress the ALE initialization text in the console (may not work)
     :param visualize: Whether the agent's gameplay will be shown to the user in a seperate window
     :param show_death_message: Whether to print the cause of death to the console
+    :param load_state: File to load a save state from
     :return: The total reward over all steps the user recieved
     """
-    ale: ALEInterface = ale_init(game, suppress=suppress, visualize=visualize)
+    ale: ALEInterface = ale_init(game, suppress=suppress, visualize=visualize, load_state=load_state)
     reward: float = 0
     last_action: int = 0
     last_life: bool = False
@@ -412,7 +437,8 @@ def main() -> None:
         if choice == 'g':
             play_game(game='ALE/MontezumaRevenge-ram-v5')
         elif choice == 'a':
-            run_frames(frames=60 * 60 * 60, info=True, frames_per_step=1, visualize=True, show_death_message=True)
+            run_frames(frames=60 * 30, info=True, frames_per_step=1, visualize=True, show_death_message=True,
+                       load_state='beam-0')
         else:
             print("Invalid choice. Try again.")
     else:
