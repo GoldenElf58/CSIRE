@@ -3,16 +3,16 @@ This file is for testing purposes and has many of the same functions in main.py
 """
 
 import os
-import subprocess
+import pickle
 import sys
 import time
-from collections import defaultdict
+from typing import Any
 
-import cv2
 import gym
 import numpy as np
 import pygame
-from ale_py import ALEInterface, roms, Action
+from ale_py import ALEInterface, ALEState, Action, LoggerMode, roms
+from collections import defaultdict
 from gym.utils.play import play
 
 from neuroevolution import test_neat
@@ -110,51 +110,6 @@ def play_game(game='MontezumaRevenge-v4') -> None:
     play(env, keys_to_action=keys_to_action, callback=callback)
 
 
-def load_rom_suppressed(game: str) -> None:
-    """
-    Attempts to load the game without any message to console (does not work when in parallel, may not work normally)
-    :param game: Name of the game to be loaded
-    :return: None
-    """
-    # Create a temporary script to load the ROM
-    script_content = f"""
-import os
-from ale_py import ALEInterface, roms
-
-def load_rom():
-    ale = ALEInterface()
-    available_roms = roms.get_all_rom_ids()
-    if '{game}' in available_roms:
-        rom_path = roms.get_rom_path('{game}')
-        ale.loadROM(rom_path)
-    else:
-        raise ValueError(f'ROM for game {game} not supported.\\nSupported ROMs: {{available_roms}}')
-
-if __name__ == "__main__":
-    load_rom()
-"""
-    
-    script_path = "temp_script.py"
-    with open(script_path, "w") as script_file:
-        script_file.write(script_content)
-    
-    # Run the temporary script in a subprocess
-    try:
-        result = subprocess.run(
-            ["python", script_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-    finally:
-        os.remove(script_path)
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to load ROM: {result.stderr}\nReturn Code: {result.returncode}")
-    else:
-        print(result.stdout)
-
-
 def convert_game_name(game_name: str, to_camel_case=True) -> str:
     """
     Converts a game name (e.g. 'MontezumaRevenge') to or from camel case
@@ -172,28 +127,98 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
         return converted_name
 
 
-def ale_init(game: str, suppress=False) -> ALEInterface:
+def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 0, visualize: bool = False,
+             frame_skip: int = 0, seed: int = 123) -> ALEInterface:
     """
     Takes a game and loads it.
     :param game: Name of the game
-    :param suppress: Whether the output to the console is suppressed or not (may not work)
+    :param suppress: Whether to suppress info about the game running to the console
+    :param repeat_action_probability: Probability to repeat the action the next frame, regardless of the agent's choice
+    :param visualize: Whether to visualize the game interaction
+    :param frame_skip: Number of times to repeat an action without observing
+    :param seed: Random seed
     :return: An ALEInterface with a game loaded
     """
     ale: ALEInterface = ALEInterface()
+    if suppress: ale.setLoggerMode(LoggerMode.Error)
     
-    if suppress:
-        game: str = convert_game_name(game, False)
-        load_rom_suppressed(game)
-    else:
-        game = convert_game_name(game, True)
-        rom = getattr(roms, game)
-        ale.loadROM(rom)
+    ale.setFloat('repeat_action_probability', repeat_action_probability)
+    ale.setBool('display_screen', visualize)
+    ale.setInt('frame_skip', frame_skip)
+    if seed is not None: ale.setInt('random_seed', seed)
+    
+    game = convert_game_name(game, True)
+    rom = getattr(roms, game)
+    ale.loadROM(rom)
     return ale
 
 
-def human_input(fps=60) -> int:
+def save_state(data: Any, base_filename: str = "save-state") -> None:
+    """Saves data to a file with an incrementing number in the filename.
+        :param data: The data to save.
+        :param base_filename: The base filename (without extension).
+        :return: None
+    """
+    largest_number = -1
+    for filename in os.listdir('.'):  # Get list of files in current directory [1]
+        if filename.startswith(base_filename + '-'):
+            try:
+                number = int(filename[len(base_filename) + 1:].split('.')[0])
+                largest_number = max(largest_number, number)
+            except ValueError:
+                pass  # Ignore files with non-numeric extensions
+    
+    next_number = largest_number + 1
+    filename = f"{base_filename}-{next_number}"
+    filepath = os.path.join('.', filename)  # Construct file path [1, 2]
+    
+    with open(filepath, "wb") as file:
+        pickle.dump(data, file)
+
+
+def load_latest_state(base_filename="save-state"):
+    """Loads data from the most recent file with the given base filename.
+        :param base_filename: The base filename (without extension).
+        :return: The loaded data, or None if no matching files are found.
+    """
+    latest_filename = None
+    largest_number = -1
+    for filename in os.listdir('.'):
+        if filename.startswith(base_filename + '-'):
+            try:
+                number = int(filename[len(base_filename) + 1:].split('.')[0])
+                if number > largest_number:
+                    largest_number = number
+                    latest_filename = filename
+            except ValueError:
+                pass
+    
+    if latest_filename is not None:
+        filepath = os.path.join('.', latest_filename)
+        with open(filepath, 'rb') as file:
+            return pickle.load(file)
+    
+    return None  # No matching files found
+
+
+def load_specific_state(state_index: int, base_filename="save-state"):
+    specific_filename = None
+    for filename in os.listdir('.'):
+        if f'{base_filename}-{state_index}' in filename:
+            specific_filename = filename
+    
+    if specific_filename is not None:
+        filepath = os.path.join('.', specific_filename)
+        with open(filepath, 'rb') as file:
+            return pickle.load(file)
+    
+    return None  # No matching files found
+
+
+def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
     """
     Waits to achieve a certain FPS and returns the action of the user
+    :param ale: ALEInterface with game loaded
     :param fps: Wanted FPS of the game
     :return: User action
     """
@@ -219,29 +244,47 @@ def human_input(fps=60) -> int:
     
     # Initialize pygame and create a small window to capture events
     pygame.init()
-    screen = pygame.display.set_mode((100, 100))
+    pygame.display.set_mode((100, 100))
     pygame.display.set_caption("Human Input Capture")
     
     clock = pygame.time.Clock()  # Create a clock object to control the frame rate
     
-    while True:
-        pressed_keys = pygame.key.get_pressed()
-        active_keys = tuple(key for key, pressed in enumerate(pressed_keys) if pressed)
+    pressed_keys = pygame.key.get_pressed()
+    active_keys = tuple(key for key, pressed in enumerate(pressed_keys) if pressed)
+    
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            return 0, ale  # Exit function if window is closed
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_s:
+                env_data: ALEState = ale.cloneState()
+                save_state(env_data)
+                print("Game state saved.")
+            elif event.key == pygame.K_l:
+                env_data: ALEState = load_latest_state()
+                ale.restoreState(env_data)
+                print("Game state loaded.")
+            elif event.key == pygame.K_d:
+                try:
+                    game_state_index: int = int(input("Save State #: "))
+                    env_data: ALEState = load_specific_state(game_state_index)
+                    ale.restoreState(env_data)
+                    print(f"Game state {game_state_index} loaded")
+                except (ValueError, TypeError) as e:
+                    print(f"Unable to load state. Error: {e}")
         
-        for key_combo in keys_to_action:
-            if all(pressed_keys[key] for key in key_combo) and len(active_keys) == len(key_combo):
-                action = keys_to_action[key_combo]
-                clock.tick(fps)
-                return action  # Return the action without closing the window
-        
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                return 0  # Exit function if window is closed
-        
-        clock.tick(fps)
         pygame.display.update()
-        return 0
+        clock.tick(fps)
+        return 0, ale
+    
+    for key_combo in keys_to_action:
+        if all(pressed_keys[key] for key in key_combo) and len(active_keys) == len(key_combo):
+            action = keys_to_action[key_combo]
+            clock.tick(fps)
+            return action, ale  # Return the action without closing the window
+    
+    return 0, ale
 
 
 def take_action(action_index, ale: ALEInterface) -> int:
@@ -258,21 +301,23 @@ def take_action(action_index, ale: ALEInterface) -> int:
     return reward
 
 
-def terminate(incentive, death_message="Dead", punishment=200) -> tuple[bool, float]:
+def terminate(incentive, show_death_message=False, death_message="Dead", punishment=200) -> tuple[bool, float]:
     """
     Terminates/kills an agent playing a game (e.g. Montezuma's Revenge) and gives a punishment for that
     :param incentive: The current incentive given to the agent
+    :param show_death_message: Whether to print a death message to the console when the agent's process terminates
     :param death_message: The message to print to the console when the agent's process terminates
     :param punishment: The punishment given to the agent for being terminated before its time ends
     :return: A tuple containing the 'end' boolean, which terminates the agent's process and the new incentive
     """
-    print(f'\n{death_message}')
+    if show_death_message: print(f'\n{death_message}')
     incentive -= punishment
     end: bool = True
     return end, incentive
 
 
-def add_incentive(ram, last_life: bool, last_action: int, death_clock: int) -> tuple[float, bool, bool, int]:
+def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show_death_message: bool = False,
+                  give_incentive: bool = False) -> tuple[float, bool, bool, int]:
     """
     Takes in the game state and adds an incentive to the environment reward. This function also kills/terminates the
     agent's process if it stalls for more than 5 seconds or dies on its last life.
@@ -280,6 +325,8 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int) -> t
     :param last_life: Whether the agent is on its last life
     :param last_action: The last action the agent took
     :param death_clock: The number of frames the agent has taken the 'NOOP' action
+    :param give_incentive: Whether to give the agent an incentive in addition to its reward
+    :param show_death_message: Whether to print a death message to the console when the agent dies
     :return: A typle containing: the new incentive for the agent, whether the agent is on its last life, the 'end'
     boolean that dictates whther to terminate the agent, and the amount of frames the agent has taken the 'NOOP' action
     """
@@ -290,12 +337,13 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int) -> t
         death_clock += 1
     else:
         death_clock = 0
-    if death_clock > 60 * 60: incentive, end = terminate(incentive, death_message='Dead - Stalling')
+    # if death_clock > 60*5: incentive, end = terminate(incentive, show_death_message, death_message='Dead - Stalling')
     
     match ram[58]:
         case 0:
             if ram[55] == 0: last_life = True
-            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, death_message='Dead - Last Life')
+            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, show_death_message,
+                                                                     death_message='Dead - Last Life')
         case _:
             incentive += ram[58] * .001
     
@@ -308,11 +356,12 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int) -> t
             incentive += 0.9
     
     incentive -= .0001 * ram[43]
+    if not give_incentive: incentive = 0
     return incentive, last_life, end, death_clock
 
 
-def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False,
-               display_frames=False) -> float:
+def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
+               visualize=False, show_death_message=False) -> float:
     """
     Runs a given game for a specified number of frames based on user input
     :param frames: Number of frames/steps to run the game for
@@ -320,10 +369,11 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     :param frames_per_step: The number of frames the user's chosen action is applied to before it gets to decide again
     :param game: The name of the game the agent is playing (e.g. 'MontezumaRevenge')
     :param suppress: Whether to suppress the ALE initialization text in the console (may not work)
-    :param display_frames: Whether the agent's gameplay will be shown to the user in a seperate window
+    :param visualize: Whether the agent's gameplay will be shown to the user in a seperate window
+    :param show_death_message: Whether to print the cause of death to the console
     :return: The total reward over all steps the user recieved
     """
-    ale: ALEInterface = ale_init(game, suppress)
+    ale: ALEInterface = ale_init(game, suppress=suppress, visualize=visualize)
     reward: float = 0
     last_action: int = 0
     last_life: bool = False
@@ -331,22 +381,18 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     
     for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
-        incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock)
+        incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock,
+                                                               show_death_message)
         if end: break
         reward += incentive
         
         if i % frames_per_step == 0:
-            output = human_input()
-            reward += take_action(output, ale)
-            last_action = output
+            action_index, ale = human_input(ale)
+            reward += take_action(action_index, ale)
+            last_action = action_index
         else:
             reward += take_action(last_action, ale)
-        
-        if display_frames:
-            cv2.imshow('Image', ale.getScreenRGB())
-            if cv2.waitKey(1) & 0xFF == ord('q'): break
     
-    if display_frames: cv2.destroyAllWindows()
     if info: print(f'Total Reward: {reward}')
     return reward
 
@@ -366,7 +412,7 @@ def main() -> None:
         if choice == 'g':
             play_game(game='ALE/MontezumaRevenge-ram-v5')
         elif choice == 'a':
-            run_frames(frames=60 * 60, info=True, frames_per_step=1, display_frames=True)
+            run_frames(frames=60 * 60 * 60, info=True, frames_per_step=1, visualize=True, show_death_message=True)
         else:
             print("Invalid choice. Try again.")
     else:

@@ -6,7 +6,6 @@ import sys
 import threading
 import time
 
-import cv2
 import neat
 from ale_py import ALEInterface, Action, LoggerMode, roms
 
@@ -33,10 +32,12 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
         return converted_name
 
 
-def ale_init(game: str, repeat_action_probability=0, visualize=False, frame_skip=0, seed=123) -> ALEInterface:
+def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 0, visualize: bool = False,
+             frame_skip: int = 0, seed: int = 123) -> ALEInterface:
     """
     Takes a game and loads it.
     :param game: Name of the game
+    :param suppress: Whether to suppress info about the game running to the console
     :param repeat_action_probability: Probability to repeat the action the next frame, regardless of the agent's choice
     :param visualize: Whether to visualize the game interaction
     :param frame_skip: Number of times to repeat an action without observing
@@ -44,7 +45,7 @@ def ale_init(game: str, repeat_action_probability=0, visualize=False, frame_skip
     :return: An ALEInterface with a game loaded
     """
     ale: ALEInterface = ALEInterface()
-    ale.setLoggerMode(LoggerMode.Error)
+    if suppress: ale.setLoggerMode(LoggerMode.Error)
     
     ale.setFloat('repeat_action_probability', repeat_action_probability)
     ale.setBool('display_screen', visualize)
@@ -192,8 +193,8 @@ def terminate(incentive, show_death_message=False, death_message="Dead", punishm
     return end, incentive
 
 
-def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, give_incentive: bool = False,
-                  show_death_message: bool = False) -> tuple[float, bool, bool, int]:
+def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show_death_message: bool = False,
+                  give_incentive: bool = True) -> tuple[float, bool, bool, int]:
     """
     Takes in the game state and adds an incentive to the environment reward. This function also kills/terminates the
     agent's process if it stalls for more than 5 seconds or dies on its last life.
@@ -201,8 +202,8 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, give
     :param last_life: Whether the agent is on its last life
     :param last_action: The last action the agent took
     :param death_clock: The number of frames the agent has taken the 'NOOP' action
-    :param give_incentive: Whether to give the agent an incentive in addition to its reward
     :param show_death_message: Whether to print a death message to the console when the agent dies
+    :param give_incentive: Whether to give the agent an incentive in addition to its reward
     :return: A typle containing: the new incentive for the agent, whether the agent is on its last life, the 'end'
     boolean that dictates whther to terminate the agent, and the amount of frames the agent has taken the 'NOOP' action
     """
@@ -236,8 +237,8 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, give
     return incentive, last_life, end, death_clock
 
 
-def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=False, model=create_model(),
-               display_frames=False, show_death_message=False, activation=neat.nn.FeedForwardNetwork.activate) -> float:
+def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True, model=create_model(),
+               visualize=False, show_death_message=False, activation=neat.nn.FeedForwardNetwork.activate) -> float:
     """
     A function that lets an agent play a given game for a given number of steps.
     :param frames: Number of frames or steps for the agent to take actions
@@ -246,12 +247,12 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     :param game: The name of the game the agent is playing (e.g. 'MontezumaRevenge')
     :param suppress: Whether to suppress the ALE initialization text in the console (may not work)
     :param model: The NEAT model that will play the game
+    :param visualize: Whether the agent's gameplay will be shown to the user in a seperate window
     :param show_death_message: Whether to print the cause of death to the console
-    :param display_frames: Whether the agent's gameplay will be shown to the user in a seperate window
     :param activation: The activation function of the agent (not implemented)
     :return: The total reward over all steps the agent recieved
     """
-    ale: ALEInterface = ale_init(game, suppress)
+    ale: ALEInterface = ale_init(game, suppress=suppress, visualize=visualize)
     reward: float = 0
     last_action: int = 0
     last_life: bool = False
@@ -271,12 +272,7 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
             last_action = action_index
         else:
             reward += take_action(last_action, ale)
-        
-        if display_frames:
-            cv2.imshow('Image', ale.getScreenRGB())
-            if cv2.waitKey(1) & 0xFF == ord('q'): break
     
-    if display_frames: cv2.destroyAllWindows()
     if info: print(f'Total Reward: {reward}')
     return reward
 
@@ -2364,7 +2360,7 @@ DefaultConnectionGene(key=(628, 5), weight=-0.49794451679020585, enabled=True)
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
              checkpoint=find_most_recent_checkpoint(), insert_genomes=True, genome_strs=successful_genomes,
-             extra_inputs=[{'display_frames': False}])
+             extra_inputs=[{'visualize': True}])
 
 
 if __name__ == "__main__":
