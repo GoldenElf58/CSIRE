@@ -341,7 +341,7 @@ def terminate(incentive, show_death_message=False, death_message="Dead", punishm
 
 
 def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show_death_message: bool = False,
-                  give_incentive: bool = False) -> tuple[float, bool, bool, int]:
+                  give_incentive: bool = True) -> tuple[float, bool, bool, int]:
     """
     Takes in the game state and adds an incentive to the environment reward. This function also kills/terminates the
     agent's process if it stalls for more than 5 seconds or dies on its last life.
@@ -361,25 +361,16 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
         death_clock += 1
     else:
         death_clock = 0
-    # if death_clock > 60*5: incentive, end = terminate(incentive, show_death_message, death_message='Dead - Stalling')
+    if death_clock > 60*5: incentive, end = terminate(incentive, show_death_message, death_message='Dead - Stalling')
     
     match ram[58]:
         case 0:
             if ram[55] == 0: last_life = True
-            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, show_death_message,
+            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, show_death_message, punishment=1,
                                                                      death_message='Dead - Last Life')
         case _:
             incentive += ram[58] * .001
-    
-    match ram[66]:
-        case 13:
-            incentive += 0.3
-        case 12:
-            incentive += 0.6
-        case 14:
-            incentive += 0.9
-    
-    incentive -= .0001 * ram[43]
+        
     if not give_incentive: incentive = 0
     return incentive, last_life, end, death_clock
 
@@ -407,7 +398,7 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
         incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock,
-                                                               show_death_message)
+                                                               show_death_message=show_death_message)
         if end: break
         reward += incentive
         
