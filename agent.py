@@ -29,7 +29,7 @@ class Agent:
         self.death_clock: int = 0
         self.reward: float = 0
         self.give_incentive: bool = True
-        self.ale = self.ale_init()
+        self.ale = None
 
     def ale_init(self):
         """
@@ -85,11 +85,13 @@ class Agent:
         agent's process if it stalls for more than 5 seconds or dies on its last life.
         :return: None
         """
+        self.incentive = 0
         lives = self.ram[58]
         death_scene_countdown = self.ram[55]
         room_number = self.ram[3]
+        useless_action_set = {0, 1, 2, 5}
 
-        if self.last_action == 0:
+        if self.last_action in useless_action_set:
             self.death_clock += 1
         else:
             self.death_clock = 0
@@ -108,29 +110,31 @@ class Agent:
         if room_number != 7 and room_number != 1:
             self.terminate(death_message=f'Dead - Wrong Screen ({room_number})', punishment=200)
 
-        if room_number == 7 and self.last_action not in {0, 1, 2, 5}:
+        if room_number == 7 and self.last_action not in useless_action_set:
             self.incentive += .1 * (self.ram[42] / 255) ** 2
         if not self.give_incentive:
             self.incentive = 0
+        self.reward += self.incentive
 
-    def run_frames(self):
+    def run_frames(self) -> float:
         """
         A function that lets an agent play a given game for a given number of steps.
         :return: The total reward over all steps the agent recieved
         """
+        self.ale_init()
 
         for i in range(self.frames):
-            self.ram = self.ale.getRAM().reshape(1, -1)[0]
-            self.inputs = self.ram
+            self.inputs = self.ram = self.ale.getRAM().reshape(1, -1)[0]
             self.add_incentive()
-            self.reward += self.incentive
+
             if self.end:
                 break
 
             if i % self.frames_per_step == 0:
                 self.run()
                 action_index: int = get_action_index(self.outputs)
-                self.reward += take_action(action_index, self.ale)
+                game_reward = take_action(action_index, self.ale)
+                self.reward += game_reward
                 self.last_action = action_index
             else:
                 self.reward += take_action(self.last_action, self.ale)

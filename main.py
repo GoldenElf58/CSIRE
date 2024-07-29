@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 
 import neat
 
@@ -80,12 +81,12 @@ def run_in_parallel(function, args: None or list[list] = None, kwargs: None or l
             if args is None:
                 futures = [executor.submit(function) for _ in range(iterations)]
             else:
-                futures = [executor.submit(function, *args) for _ in range(iterations)]
+                futures = [executor.submit(function, *args[i]) for i in range(iterations)]
         else:
             if args is None:
                 futures = [executor.submit(function, **kwargs[i]) for i in range(iterations)]
             else:
-                futures = [executor.submit(function, *args, **kwargs[i]) for i in range(iterations)]
+                futures = [executor.submit(function, *args[i], **kwargs[i]) for i in range(iterations)]
         for future in concurrent.futures.as_completed(futures):
             try:
                 result = future.result()
@@ -93,7 +94,9 @@ def run_in_parallel(function, args: None or list[list] = None, kwargs: None or l
             except KeyboardInterrupt:
                 sys.exit()
             except Exception as e:
-                print(f"Function raised an exception: {e}")
+                print("An error occurred:")
+                traceback.print_exc()
+                print(e)
                 results.append(None)
             current_iteration[0] += 1  # Increment the iteration count
     
@@ -118,9 +121,9 @@ def game_eval(genomes, config, func_params=None, run_func=Agent.run_frames) -> N
     args = []
     for _, genome in genomes:
         net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
-        kwargs = {'frames': 60 * 30, 'frames_per_step': 2, 'model': net} | func_params
+        kwargs = {'frames': 60 * 30, 'frames_per_step': 2} | func_params
         agent: Agent = Agent(net, **kwargs)
-        args.append(agent)
+        args.append([agent])
     results = run_in_parallel(run_func, args=args, iterations=len(args))
     for i, [_, genome] in enumerate(genomes):
         genome.fitness = results[i]
@@ -1215,7 +1218,7 @@ Best Fitness: 771.709
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
              checkpoint=find_most_recent_checkpoint(), insert_genomes=False, genome_strs=successful_genomes,
-             extra_inputs=[{'visualize': False}])
+             extra_inputs=[{'visualize': False, 'load_state': 'beam-0'}])
 
 
 if __name__ == "__main__":
