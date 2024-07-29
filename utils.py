@@ -1,7 +1,45 @@
 import os
 import pickle
 from typing import Any
+
 from ale_py import Action, ALEInterface
+
+
+def find_most_recent_file(base_filename='neat_checkpoint'):
+    """
+    Returns the name of the most recent file of a specific base filename (based on the number at the end of the file
+    name (e.g. 'neat-checkpoint-172')
+    :param base_filename: Base filename (e.g. 'neat-checkpoint' or 'save-state')
+    :return: Name of the most recent checkpoint file
+    """
+    files = os.listdir('.')
+    latest_file_num = None
+    latest_file_name = None
+    for file in files:
+        if file.startswith(base_filename + '-'):
+            try:
+                current_file_num = int(file.split('-')[-1])
+                if latest_file_num is None or current_file_num > latest_file_num:
+                    latest_file_num = current_file_num
+                    latest_file_name = file
+            except ValueError:
+                pass
+
+    return latest_file_name
+
+
+def find_all_files(base_filename='successful-genome'):
+    """
+    Finds all files that start with a base filename
+    :param base_filename: The base filename that a file starts with
+    :return: A list of names of files that start with the base filename
+    """
+    files = []
+    for file in os.listdir('.'):
+        if file.startswith(base_filename + '-'):
+            files.append(file)
+
+    return files
 
 
 def save_state(data: Any, base_filename: str = "save-state") -> None:
@@ -39,17 +77,7 @@ def load_latest_state(base_filename="save-state"):
         :param base_filename: The base filename (without extension).
         :return: The loaded data, or None if no matching files are found.
     """
-    latest_filename = None
-    largest_number = -1
-    for filename in os.listdir('.'):
-        if filename.startswith(base_filename + '-'):
-            try:
-                number = int(filename[len(base_filename) + 1:].split('.')[0])
-                if number > largest_number:
-                    largest_number = number
-                    latest_filename = filename
-            except ValueError:
-                pass
+    latest_filename = find_most_recent_file(base_filename)
 
     if latest_filename is not None:
         return load_specific_state(latest_filename)

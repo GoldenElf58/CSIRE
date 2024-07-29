@@ -7,14 +7,16 @@ import time
 from collections import defaultdict
 
 import gym
+import neat
 import numpy as np
 import pygame
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
 from gym.utils.play import play
 
+from agent import Agent
 from neuroevolution import test_neat
 from utils import (save_state, save_specific_state, load_specific_state, load_latest_state, take_action,
-                   convert_game_name)
+                   convert_game_name, find_most_recent_file)
 
 # ANSI escape codes for colors
 RESET_COLOR = "\033[0m"
@@ -337,7 +339,7 @@ def main() -> None:
     The main function of the program
     :return: None
     """
-    choice = input("Test NEAT (N/n) or play game (G/g)?  ").lower()
+    choice = input("Test NEAT (N/n), play game (G/g), or test best agent (A/a)?  ").lower()
     t0 = time.perf_counter()
     if choice == 'n':
         test_neat()
@@ -351,6 +353,14 @@ def main() -> None:
                        load_state='beam-0')
         else:
             print("Invalid choice. Try again.")
+    elif choice == 'a':
+        genome = load_specific_state(find_most_recent_file('successful-genome'))
+        config: neat.config.Config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                                        neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                                        "config-feedforward")
+        agent = Agent(genome, config, 0, visualize=True, frames=60*30, frames_per_step=2, suppress=False,
+                      show_death_message=True, load_state='beam-0', info=True)
+        agent.run_frames()
     else:
         print("Invalid choice. Try again.")
     t1 = time.perf_counter()

@@ -1,13 +1,18 @@
+import neat
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
 
+# from neuroevolution import create_genome_from_string
 from utils import convert_game_name, get_action_index, load_specific_state, run_neat_model, take_action
 
 
 class Agent:
-    def __init__(self, net, frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
-                 visualize=False, show_death_message=False, seed=123, frame_skip=0, repeat_action_probability=0,
-                 load_state=None):
-        self.net = net
+    def __init__(self, genome, config, index, frames=100, info=False, frames_per_step=1, game='MontezumaRevenge',
+                 suppress=True, visualize=False, show_death_message=False, seed=123, frame_skip=1,
+                 repeat_action_probability=0, load_state=None):
+        self.index = index
+        self.genome = genome
+        self.config = config
+        self.net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
         self.frames = frames
         self.info = info
         self.frames_per_step = frames_per_step
@@ -96,7 +101,7 @@ class Agent:
         else:
             self.death_clock = 0
         if self.death_clock > 60 * 6:
-            self.terminate(death_message='Dead - Stalling', punishment=200)
+            self.terminate(death_message='Dead - Stalling', punishment=100)
 
         match lives:
             case 0:
@@ -116,7 +121,7 @@ class Agent:
             self.incentive = 0
         self.reward += self.incentive
 
-    def run_frames(self) -> float:
+    def run_frames(self) -> tuple[float, int]:
         """
         A function that lets an agent play a given game for a given number of steps.
         :return: The total reward over all steps the agent recieved
@@ -141,4 +146,12 @@ class Agent:
 
         if self.info:
             print(f'Total Reward: {self.reward}')
-        return self.reward
+        return self.reward, self.index
+
+
+def main() -> None:
+    pass
+
+
+if __name__ == "__main__":
+    main()
