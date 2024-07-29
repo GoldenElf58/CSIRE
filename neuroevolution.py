@@ -56,11 +56,10 @@ def XOR_eval(genomes, config, input_output_pairs):
             genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
 
 
-def create_genome_from_string(genome_str, config) -> neat.DefaultGenome:
+def create_genome_from_string(genome_str: str) -> neat.DefaultGenome:
     """
     Returns a renome based on a string that defines the genome. The user may have copied this from the console.
-    :param genome_str: The string of the genome
-    :param config: The configuration file of the genome (not used)
+    :param genome_str: The genome in the format of a string
     :return: The genome in the format of the DefaultGenome class
     """
     genome = neat.DefaultGenome(key=0)
@@ -128,7 +127,8 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
         p = neat.Population(config)
     
     if insert_genomes:
-        if genome_strs is None: genome_strs = ["""
+        if genome_strs is None:
+            genome_strs = ["""
         Nodes:
         DefaultNodeGene(key=0, bias=-1.95087563516349, response=1.0, activation=relu, aggregation=sum)
         DefaultNodeGene(key=1, bias=2.1880162934634884, response=1.0, activation=relu, aggregation=sum)
@@ -1148,7 +1148,7 @@ def run_neat(config_path, extra_inputs=None, eval_func=XOR_eval, detail=True, di
 
         """]
         for genome_str in genome_strs:
-            genome = create_genome_from_string(genome_str, config)
+            genome = create_genome_from_string(genome_str)
             p.population[genome.key] = genome
     
     p.add_reporter(TimedReporter(detail, interval=2))
