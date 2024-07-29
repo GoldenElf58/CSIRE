@@ -14,6 +14,11 @@ from neuroevolution import run_neat
 
 
 def load_specific_state(filename: str):
+    """
+    Loads a game state with a specific filename.
+    :param filename: Filename with game state to be loaded
+    :return: Game state
+    """
     if filename in os.listdir('.'):
         filepath = os.path.join('.', filename)
         with open(filepath, 'rb') as file:
@@ -30,7 +35,8 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
     :return: String (e.g. 'montezuma_revenge') - Returns converted game name
     """
     if to_camel_case:
-        if '_' not in game_name: return game_name
+        if '_' not in game_name:
+            return game_name
         words: list[str] = game_name.split('_')
         capitalized_words: list[str] = [word.capitalize() for word in words]
         return ''.join(capitalized_words)
@@ -54,12 +60,14 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     """
     ale: ALEInterface = ALEInterface()
     
-    if suppress: ale.setLoggerMode(LoggerMode.Error)
+    if suppress:
+        ale.setLoggerMode(LoggerMode.Error)
     
     ale.setFloat('repeat_action_probability', repeat_action_probability)
     ale.setBool('display_screen', visualize)
     ale.setInt('frame_skip', frame_skip)
-    if seed is not None: ale.setInt('random_seed', seed)
+    if seed is not None:
+        ale.setInt('random_seed', seed)
     
     game = convert_game_name(game, True)
     rom = getattr(roms, game)
@@ -68,7 +76,8 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     if load_state is not None:
         env_data: ALEState = load_specific_state(load_state)
         ale.restoreState(env_data)
-        if not suppress: print(f"Game state loaded from {load_state}")
+        if not suppress:
+            print(f"Game state loaded from {load_state}")
         return ale
     
     return ale
@@ -105,7 +114,8 @@ def get_action_index(output: list[float]) -> int:
     :return: The index of the action to be taken
     """
     action_index: int = output.index(max(output))
-    if action_index >= 6: action_index += 5
+    if action_index >= 6:
+        action_index += 5
     return action_index
 
 
@@ -203,7 +213,8 @@ def terminate(incentive, show_death_message=False, death_message="Dead", punishm
     :param punishment: The punishment given to the agent for being terminated before its time ends
     :return: A tuple containing the 'end' boolean, which terminates the agent's process and the new incentive
     """
-    if show_death_message: print(f'\n{death_message}')
+    if show_death_message:
+        print(f'\n{death_message}')
     incentive -= punishment
     end: bool = True
     return end, incentive
@@ -230,20 +241,21 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
         death_clock += 1
     else:
         death_clock = 0
-    if death_clock > 60 * 4: incentive, end = terminate(incentive, show_death_message,
-                                                        'Dead - Stalling', 200)
+    if death_clock > 60 * 6:
+        incentive, end = terminate(incentive, show_death_message, 'Dead - Stalling', 200)
     
     match ram[58]:
         case 0:
-            if ram[55] == 0: last_life = True
-            if ram[55] > 0 and last_life: incentive, end = terminate(incentive, show_death_message,
-                                                                     'Dead - Last Life', 15)
+            if ram[55] == 0:
+                last_life = True
+            if ram[55] > 0 and last_life:
+                incentive, end = terminate(incentive, show_death_message, 'Dead - Last Life', 15)
         case _:
             incentive += ram[58] * .001
     
-    if ram[3] != 7 and ram[3] != 1: end, incentive = terminate(incentive, show_death_message,
-                                                               death_message=f'Dead - Wrong Screen ({ram[3]})',
-                                                               punishment=200)
+    if ram[3] != 7 and ram[3] != 1:
+        end, incentive = terminate(incentive, show_death_message, death_message=f'Dead - Wrong Screen ({ram[3]})',
+                                   punishment=200)
     
     # match ram[66]:
     #     case 13:
@@ -253,8 +265,10 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
     #     case 14:
     #         incentive += 0.9
     
-    if ram[3] == 7 and last_action != 0: incentive += .2 * (ram[42] / 255) ** 3
-    if not give_incentive: incentive = 0
+    if ram[3] == 7 and last_action != 0:
+        incentive += .2 * (ram[42] / 255) ** 3
+    if not give_incentive:
+        incentive = 0
     return incentive, last_life, end, death_clock
 
 
@@ -282,9 +296,10 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
         inputs = ale.getRAM().reshape(1, -1)[0]
         incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock,
                                                                show_death_message)
-        if end: break
         reward += incentive
-        
+        if end:
+            break
+
         if i % frames_per_step == 0:
             output = run_neat_model(model, inputs)
             action_index: int = get_action_index(output)
@@ -293,7 +308,8 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
         else:
             reward += take_action(last_action, ale)
     
-    if info: print(f'Total Reward: {reward}')
+    if info:
+        print(f'Total Reward: {reward}')
     return reward
 
 
@@ -1410,7 +1426,6 @@ Best Fitness: 771.709
 
 
 if __name__ == "__main__":
-    logger = setup_logging()
     print('Program Started')
     main()
 

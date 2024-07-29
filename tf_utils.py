@@ -25,7 +25,7 @@ def load_tflite_model() -> tuple[list, list, tf.lite.Interpreter]:
     return input_details, output_details, interpreter
 
 
-def load_image(img, input_details) -> np.array:
+def load_image(img: Image, input_details) -> np.array:
     """
     Loads an image and converts it to a format for the tensorflow model
     :param img: The image to be converted
@@ -52,7 +52,7 @@ def load_image(img, input_details) -> np.array:
 
 
 # noinspection PyUnresolvedReferences
-def display_bounding_boxes(img, boxes, classes, scores, scale_factor=3) -> None:
+def display_bounding_boxes(img: Image, boxes, classes, scores, scale_factor=3) -> None:
     """
     Displays the image with the bounding boxes of the identified objects
     :param img: The initial image
@@ -91,9 +91,8 @@ def display_bounding_boxes(img, boxes, classes, scores, scale_factor=3) -> None:
     cv2.destroyAllWindows()
 
 
-def run_tflite(img, input_details, output_details, interpreter, info=False, display=False) -> tuple[list[int],
-                                                                                                    list[float],
-                                                                                                    list[list[float]]]:
+def run_tflite(img: Image, input_details: list, output_details: list, interpreter: tf.lite.Interpreter,
+               info=False, display=False) -> tuple[list[int], list[float], list[list[float]]]:
     """
     Runs the TFlite model and (possibly) displays the image with the object bounding boxes
     :param img: The image the model will be run on
