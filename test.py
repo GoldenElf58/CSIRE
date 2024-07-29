@@ -2,20 +2,19 @@
 This file is for testing purposes and has many of the same functions in main.py
 """
 
-import os
-import pickle
 import sys
 import time
 from collections import defaultdict
-from typing import Any
 
 import gym
 import numpy as np
 import pygame
-from ale_py import Action, ALEInterface, ALEState, LoggerMode, roms
+from ale_py import ALEInterface, ALEState, LoggerMode, roms
 from gym.utils.play import play
 
 from neuroevolution import test_neat
+from utils import (save_state, save_specific_state, load_specific_state, load_latest_state, take_action,
+                   convert_game_name)
 
 # ANSI escape codes for colors
 RESET_COLOR = "\033[0m"
@@ -110,24 +109,6 @@ def play_game(game='MontezumaRevenge-v4') -> None:
     play(env, keys_to_action=keys_to_action, callback=callback)
 
 
-def convert_game_name(game_name: str, to_camel_case=True) -> str:
-    """
-    Converts a game name (e.g. 'MontezumaRevenge') to or from camel case
-    :param game_name: String (e.g. 'MontezumaRevenge')
-    :param to_camel_case: Dictates whether the string is being converted to or from camel case
-    :return: String (e.g. 'montezuma_revenge') - Returns converted game name
-    """
-    if to_camel_case:
-        if '_' not in game_name:
-            return game_name
-        words: list[str] = game_name.split('_')
-        capitalized_words: list[str] = [word.capitalize() for word in words]
-        return ''.join(capitalized_words)
-    else:
-        converted_name: str = ''.join(['_' + i.lower() if i.isupper() else i for i in game_name]).lstrip('_')
-        return converted_name
-
-
 def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 0, visualize: bool = False,
              frame_skip: int = 0, seed: int = 123, load_state=None) -> ALEInterface:
     """
@@ -164,73 +145,6 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
         return ale
 
     return ale
-
-
-def save_state(data: Any, base_filename: str = "save-state") -> None:
-    """Saves data to a file with an incrementing number in the filename.
-        :param data: The data to save.
-        :param base_filename: The base filename (without extension).
-        :return: None
-    """
-    largest_number = -1
-    for filename in os.listdir('.'):  # Get list of files in current directory [1]
-        if filename.startswith(base_filename + '-'):
-            try:
-                number = int(filename[len(base_filename) + 1:].split('.')[0])
-                largest_number = max(largest_number, number)
-            except ValueError:
-                pass  # Ignore files with non-numeric extensions
-
-    next_number = largest_number + 1
-    filename = f"{base_filename}-{next_number}"
-    save_specific_state(data, filename)
-
-
-def save_specific_state(data: Any, filename: str, choice: str = 'Y'):
-    if filename in os.listdir('.'):
-        choice: str = input("This file already exists. Overwrite it? (Y/n)\n")
-    if choice != 'Y':
-        return
-    filepath = os.path.join('.', filename)
-    with open(filepath, "wb") as file:
-        pickle.dump(data, file)
-
-
-def load_latest_state(base_filename="save-state"):
-    """Loads data from the most recent file with the given base filename.
-        :param base_filename: The base filename (without extension).
-        :return: The loaded data, or None if no matching files are found.
-    """
-    latest_filename = None
-    largest_number = -1
-    for filename in os.listdir('.'):
-        if filename.startswith(base_filename + '-'):
-            try:
-                number = int(filename[len(base_filename) + 1:].split('.')[0])
-                if number > largest_number:
-                    largest_number = number
-                    latest_filename = filename
-            except ValueError:
-                pass
-
-    if latest_filename is not None:
-        return load_specific_state(latest_filename)
-
-    return None  # No matching files found
-
-
-def load_specific_state(filename: str):
-    """
-    Loads a game state with a specific filename.
-    :param filename: Filename with game state to be loaded
-    :return: Game state
-    """
-    if filename in os.listdir('.'):
-        filepath = os.path.join('.', filename)
-        with open(filepath, 'rb') as file:
-            return pickle.load(file)
-
-    return None  # No matching files found
 
 
 def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
@@ -315,20 +229,6 @@ def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
             return action, ale  # Return the action without closing the window
 
     return 0, ale
-
-
-def take_action(action_index, ale: ALEInterface) -> int:
-    """
-    Takes an action in a given ALEInterface
-    :param action_index: Index of action to be taken (e.g. 1 is JUMP)
-    :param ale: ALEInterface with game loaded
-    :return: Reward from that action
-    """
-    # Take an action and get the new state
-    legal_actions: list[Action] = ale.getLegalActionSet()
-    action = legal_actions[action_index]  # Choose an action (e.g., NOOP)
-    reward: int = ale.act(action)
-    return reward
 
 
 def terminate(incentive, show_death_message=False, death_message="Dead", punishment=100) -> tuple[bool, float]:

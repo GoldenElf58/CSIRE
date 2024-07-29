@@ -2,121 +2,15 @@ import concurrent.futures
 import itertools
 import logging
 import os
-import pickle
 import sys
 import threading
 import time
+from typing import Any
 
 import neat
-from ale_py import Action, ALEInterface, ALEState, LoggerMode, roms
 
+from agent import Agent
 from neuroevolution import run_neat
-
-
-def load_specific_state(filename: str):
-    """
-    Loads a game state with a specific filename.
-    :param filename: Filename with game state to be loaded
-    :return: Game state
-    """
-    if filename in os.listdir('.'):
-        filepath = os.path.join('.', filename)
-        with open(filepath, 'rb') as file:
-            return pickle.load(file)
-    
-    return None  # No matching files found
-
-
-def convert_game_name(game_name: str, to_camel_case=True) -> str:
-    """
-    Converts a game name (e.g. 'MontezumaRevenge') to or from camel case
-    :param game_name: String (e.g. 'MontezumaRevenge')
-    :param to_camel_case: Dictates whether the string is being converted to or from camel case
-    :return: String (e.g. 'montezuma_revenge') - Returns converted game name
-    """
-    if to_camel_case:
-        if '_' not in game_name:
-            return game_name
-        words: list[str] = game_name.split('_')
-        capitalized_words: list[str] = [word.capitalize() for word in words]
-        return ''.join(capitalized_words)
-    else:
-        converted_name: str = ''.join(['_' + i.lower() if i.isupper() else i for i in game_name]).lstrip('_')
-        return converted_name
-
-
-def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 0, visualize: bool = False,
-             frame_skip: int = 0, seed: int = 123, load_state='beam-0') -> ALEInterface:
-    """
-    Takes a game and loads it.
-    :param game: Name of the game
-    :param suppress: Whether to suppress info about the game running to the console
-    :param repeat_action_probability: Probability to repeat the action the next frame, regardless of the agent's choice
-    :param visualize: Whether to visualize the game interaction
-    :param frame_skip: Number of times to repeat an action without observing
-    :param seed: Random seed
-    :param load_state: File to load a save state from
-    :return: An ALEInterface with a game loaded
-    """
-    ale: ALEInterface = ALEInterface()
-    
-    if suppress:
-        ale.setLoggerMode(LoggerMode.Error)
-    
-    ale.setFloat('repeat_action_probability', repeat_action_probability)
-    ale.setBool('display_screen', visualize)
-    ale.setInt('frame_skip', frame_skip)
-    if seed is not None:
-        ale.setInt('random_seed', seed)
-    
-    game = convert_game_name(game, True)
-    rom = getattr(roms, game)
-    ale.loadROM(rom)
-    
-    if load_state is not None:
-        env_data: ALEState = load_specific_state(load_state)
-        ale.restoreState(env_data)
-        if not suppress:
-            print(f"Game state loaded from {load_state}")
-        return ale
-    
-    return ale
-
-
-def run_neat_model(model, inputs) -> list[float]:
-    """
-    Runs a NEAT neural network and returns the results
-    :param model: FeedForwardNetwork; The NEAT model
-    :param inputs: Inputs to NEAT model (e.g. environment observations)
-    :return: Model results
-    """
-    return model.activate(inputs)
-
-
-def take_action(action_index, ale: ALEInterface) -> int:
-    """
-    Takes an action in a given ALEInterface
-    :param action_index: Index of action to be taken (e.g. 1 is JUMP)
-    :param ale: ALEInterface with game loaded
-    :return: Reward from that action
-    """
-    # Take an action and get the new state
-    legal_actions: list[Action] = ale.getLegalActionSet()
-    action = legal_actions[action_index]  # Choose an action (e.g., NOOP)
-    reward: int = ale.act(action)
-    return reward
-
-
-def get_action_index(output: list[float]) -> int:
-    """
-    Takes in the outputs of the NEAT model and returns the action corresponding to the output with the highest value
-    :param output: The output of the NEAT model
-    :return: The index of the action to be taken
-    """
-    action_index: int = output.index(max(output))
-    if action_index >= 6:
-        action_index += 5
-    return action_index
 
 
 def clear() -> None:
@@ -163,12 +57,13 @@ def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
         time.sleep(0.5)  # Adjust the delay for visual effect
 
 
-def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100) -> list[float]:
+def run_in_parallel(function, args: None or list[list] = None, kwargs: None or list[dict] = None, iterations=100) -> list[float]:
     """
     Takes in a function, keyword arguments for that function, and a number of iterations, and runs that function in
     parallel with those arguments for the given number of iterations
     :param function: The function to be run in parallel
-    :param kwargs: A list of dictionaries of the arguments to be passed each function
+    :param args: A list of lists of the arguments to be passed to each function
+    :param kwargs: A list of dictionaries of the arguments to be passed to each function
     :param iterations: The number of times the function needs to be run
     :return: A list of the results of each individual run of the function
     """
@@ -183,9 +78,15 @@ def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100)
     
     with concurrent.futures.ProcessPoolExecutor() as executor:
         if kwargs is None:
-            futures = [executor.submit(function) for _ in range(iterations)]
+            if args is None:
+                futures = [executor.submit(function) for _ in range(iterations)]
+            else:
+                futures = [executor.submit(function, *args) for _ in range(iterations)]
         else:
-            futures = [executor.submit(function, **kwargs[i]) for i in range(iterations)]
+            if args is None:
+                futures = [executor.submit(function, **kwargs[i]) for i in range(iterations)]
+            else:
+                futures = [executor.submit(function, *args, **kwargs[i]) for i in range(iterations)]
         for future in concurrent.futures.as_completed(futures):
             try:
                 result = future.result()
@@ -204,116 +105,7 @@ def run_in_parallel(function, kwargs: None or list[dict] = None, iterations=100)
     return results
 
 
-def terminate(incentive, show_death_message=False, death_message="Dead", punishment=100) -> tuple[bool, float]:
-    """
-    Terminates/kills an agent playing a game (e.g. Montezuma's Revenge) and gives a punishment for that
-    :param incentive: The current incentive given to the agent
-    :param show_death_message: Whether to print a death message to the console when the agent's process terminates
-    :param death_message: The message to print to the console when the agent's process terminates
-    :param punishment: The punishment given to the agent for being terminated before its time ends
-    :return: A tuple containing the 'end' boolean, which terminates the agent's process and the new incentive
-    """
-    if show_death_message:
-        print(f'\n{death_message}')
-    incentive -= punishment
-    end: bool = True
-    return end, incentive
-
-
-def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show_death_message: bool = False,
-                  give_incentive: bool = True) -> tuple[float, bool, bool, int]:
-    """
-    Takes in the game state and adds an incentive to the environment reward. This function also kills/terminates the
-    agent's process if it stalls for more than 5 seconds or dies on its last life.
-    :param ram: The RAM of the game environment
-    :param last_life: Whether the agent is on its last life
-    :param last_action: The last action the agent took
-    :param death_clock: The number of frames the agent has taken the 'NOOP' action
-    :param show_death_message: Whether to print a death message to the console when the agent dies
-    :param give_incentive: Whether to give the agent an incentive in addition to its reward
-    :return: A typle containing: the new incentive for the agent, whether the agent is on its last life, the 'end'
-    boolean that dictates whther to terminate the agent, and the amount of frames the agent has taken the 'NOOP' action
-    """
-    incentive: float = 0
-    end: bool = False
-    
-    if last_action == 0:
-        death_clock += 1
-    else:
-        death_clock = 0
-    if death_clock > 60 * 6:
-        incentive, end = terminate(incentive, show_death_message, 'Dead - Stalling', 200)
-    
-    match ram[58]:
-        case 0:
-            if ram[55] == 0:
-                last_life = True
-            if ram[55] > 0 and last_life:
-                incentive, end = terminate(incentive, show_death_message, 'Dead - Last Life', 15)
-        case _:
-            incentive += ram[58] * .001
-    
-    if ram[3] != 7 and ram[3] != 1:
-        end, incentive = terminate(incentive, show_death_message, death_message=f'Dead - Wrong Screen ({ram[3]})',
-                                   punishment=200)
-    
-    # match ram[66]:
-    #     case 13:
-    #         incentive += 0.3
-    #     case 12:
-    #         incentive += 0.6
-    #     case 14:
-    #         incentive += 0.9
-    
-    if ram[3] == 7 and last_action != 0:
-        incentive += .2 * (ram[42] / 255) ** 3
-    if not give_incentive:
-        incentive = 0
-    return incentive, last_life, end, death_clock
-
-
-def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True, model=None,
-               visualize=False, show_death_message=False) -> float:
-    """
-    A function that lets an agent play a given game for a given number of steps.
-    :param frames: Number of frames or steps for the agent to take actions
-    :param info: Flag dictating whether the reward is printed to the console at the end of the process
-    :param frames_per_step: The number of frames the agent's chosen action is applied to before it gets to decide again
-    :param game: The name of the game the agent is playing (e.g. 'MontezumaRevenge')
-    :param suppress: Whether to suppress the ALE initialization text in the console (may not work)
-    :param model: The NEAT model that will play the game
-    :param visualize: Whether the agent's gameplay will be shown to the user in a seperate window
-    :param show_death_message: Whether to print the cause of death to the console
-    :return: The total reward over all steps the agent recieved
-    """
-    ale: ALEInterface = ale_init(game, suppress=suppress, visualize=visualize)
-    reward: float = 0
-    last_action: int = 0
-    last_life: bool = False
-    death_clock: int = 0
-    
-    for i in range(frames):
-        inputs = ale.getRAM().reshape(1, -1)[0]
-        incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock,
-                                                               show_death_message)
-        reward += incentive
-        if end:
-            break
-
-        if i % frames_per_step == 0:
-            output = run_neat_model(model, inputs)
-            action_index: int = get_action_index(output)
-            reward += take_action(action_index, ale)
-            last_action = action_index
-        else:
-            reward += take_action(last_action, ale)
-    
-    if info:
-        print(f'Total Reward: {reward}')
-    return reward
-
-
-def game_eval(genomes, config, func_params=None, run_func=run_frames) -> None:
+def game_eval(genomes, config, func_params=None, run_func=Agent.run_frames) -> None:
     """
     The evaluation function for a set of genomes. Takes in the genomes and sets their fitness.
     :param genomes: A list of the genomes to be tested
@@ -324,11 +116,13 @@ def game_eval(genomes, config, func_params=None, run_func=run_frames) -> None:
     """
     if func_params is None:
         func_params = {}
-    kwargs = []
+    args = []
     for _, genome in genomes:
         net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
-        kwargs.append({'frames': 60 * 30, 'frames_per_step': 2, 'model': net} | func_params)
-    results = run_in_parallel(run_func, kwargs=kwargs, iterations=len(kwargs))
+        kwargs = {'frames': 60 * 30, 'frames_per_step': 2, 'model': net} | func_params
+        agent: Agent = Agent(net, **kwargs)
+        args.append(agent)
+    results = run_in_parallel(run_func, args=args, iterations=len(args))
     for i, [_, genome] in enumerate(genomes):
         genome.fitness = results[i]
 
@@ -1422,7 +1216,7 @@ Best Fitness: 771.709
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
              checkpoint=find_most_recent_checkpoint(), insert_genomes=False, genome_strs=successful_genomes,
-             extra_inputs=[{'visualize': True}])
+             extra_inputs=[{'visualize': False}])
 
 
 if __name__ == "__main__":
