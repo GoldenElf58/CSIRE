@@ -2,6 +2,8 @@ import os
 import pickle
 from typing import Any
 
+import neat
+
 from ale_py import Action, ALEInterface
 
 
@@ -117,16 +119,6 @@ def convert_game_name(game_name: str, to_camel_case=True) -> str:
         return converted_name
 
 
-def run_neat_model(model, inputs) -> list[float]:
-    """
-    Runs a NEAT neural network and returns the results
-    :param model: FeedForwardNetwork; The NEAT model
-    :param inputs: Inputs to NEAT model (e.g. environment observations)
-    :return: Model results
-    """
-    return model.activate(inputs)
-
-
 def take_action(action_index, ale: ALEInterface) -> int:
     """
     Takes an action in a given ALEInterface
@@ -151,3 +143,75 @@ def get_action_index(output: list[float]) -> int:
     if action_index >= 6:
         action_index += 5
     return action_index
+
+
+def divide_list(lst, n) -> list[list[Any]]:
+    """Divides the list lst into n equal parts."""
+    k, m = divmod(len(lst), n)
+    return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+
+def average_elements_at_indexes(lst: list[list[float]]) -> list[float]:
+    """Compute the average of elements at each index in a list of lists."""
+    if not lst:
+        return []
+
+    num_lists = len(lst)
+    num_elements = len(lst[0])
+    averages = [0] * num_elements
+
+    for inner_list in lst:
+        for i in range(num_elements):
+            averages[i] += inner_list[i]
+
+    return [total / num_lists for total in averages]
+
+
+def create_genome_from_string(genome_str: str) -> neat.DefaultGenome:
+    """
+    WARNING: This function seems to not work correctly
+    Returns a renome based on a string that defines the genome. The user may have copied this from the console.
+    :param genome_str: The genome in the format of a string
+    :return: The genome in the format of the DefaultGenome class
+    """
+    genome = neat.DefaultGenome(key=0)
+    genome.connections.clear()
+    genome.nodes.clear()
+
+    lines = genome_str.strip().split('\n')
+    for line in lines:
+        if line.startswith('\t') or line.startswith(' '):
+            line = line.strip()
+            if line.startswith('DefaultNodeGene'):
+                key = int(line.split('(')[1].split(')')[0])
+                attributes = line.split('=')[1].split(',')
+                bias = float(attributes[0].split('=')[1])
+                response = float(attributes[1].split('=')[1])
+                activation = attributes[2].split('=')[1].strip()
+                aggregation = attributes[3].split('=')[1].strip()
+                node_gene = neat.genes.DefaultNodeGene(key)
+                node_gene.bias = bias
+                node_gene.response = response
+                node_gene.activation = activation
+                node_gene.aggregation = aggregation
+                genome.nodes[key] = node_gene
+            elif line.startswith('DefaultConnectionGene'):
+                key = eval(line.split('(')[1].split(')')[0])
+                attributes = line.split('=')[1].split(',')
+                weight = float(attributes[0].split('=')[1])
+                enabled = attributes[1].split('=')[1].strip() == 'True'
+                connection_gene = neat.genes.DefaultConnectionGene(key)
+                connection_gene.weight = weight
+                connection_gene.enabled = enabled
+                genome.connections[key] = connection_gene
+    return genome
+
+
+def run_neat_model(model, inputs) -> list[float]:
+    """
+    Runs a NEAT neural network and returns the results
+    :param model: FeedForwardNetwork; The NEAT model
+    :param inputs: Inputs to NEAT model (e.g. environment observations)
+    :return: Model results
+    """
+    return model.activate(inputs)

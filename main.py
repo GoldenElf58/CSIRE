@@ -9,6 +9,7 @@ import traceback
 from typing import Callable
 
 from agent import Agent
+from expert_agent import ExpertAgent
 from neuroevolution import run_neat
 from utils import find_most_recent_file, load_specific_state, find_all_files
 
@@ -108,13 +109,14 @@ def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs:
     return results
 
 
-def game_eval(genomes, config, func_params=None, run_func=Agent.run_frames) -> None:
+def game_eval(genomes, config, func_params=None, run_func=Agent.run_frames, agent_type: Callable = ExpertAgent) -> None:
     """
     The evaluation function for a set of genomes. Takes in the genomes and sets their fitness.
     :param genomes: A list of the genomes to be tested
     :param config: The configuration of the genomes
     :param func_params: The parameters to be passed to the 'run_frames' function
     :param run_func: The function to test the genomes in
+    :param agent_type: The type of agent (e.g. ExpertAgent, MasterAgent, Agent
     :return: None
     """
     if func_params is None:
@@ -122,7 +124,7 @@ def game_eval(genomes, config, func_params=None, run_func=Agent.run_frames) -> N
     args = []
     for i, (_, genome) in enumerate(genomes):
         kwargs = {'frames': 60 * 30, 'frames_per_step': 2} | func_params
-        agent: Agent = Agent(genome, config, i, **kwargs)
+        agent: Agent = agent_type(genome, config, i, **kwargs)
         args.append([agent])
     results = run_in_parallel(run_func, args=args, iterations=len(args))
     for result in results:
@@ -158,14 +160,17 @@ def main() -> None:
     :return: None
     """
     successful_genomes = list(set(load_specific_state(file) for file in find_all_files('successful-genome')))
+    # successful_genomes = [load_specific_state(find_most_recent_file('successful-genome'))]
+    # successful_genomes = [load_specific_state('successful-genome-4')]
+    # successful_genomes = None
+    print(len(successful_genomes))
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward')
     run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
              checkpoint=find_most_recent_file('neat-checkpoint'), insert_genomes=True, genomes=successful_genomes,
-             extra_inputs=[{'visualize': False, 'load_state': 'beam-0'}])
+             extra_inputs=[{'visualize': False, 'load_state': 'beam-0'}], generations=2)
 
 
 if __name__ == "__main__":
     print('Program Started')
     main()
-

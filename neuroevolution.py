@@ -8,7 +8,7 @@ import time
 import neat
 import neat.genes
 
-from agent import Agent
+from expert_agent import ExpertAgent
 from utils import save_state
 
 
@@ -59,49 +59,9 @@ def XOR_eval(genomes, config, input_output_pairs):
             genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
 
 
-def create_genome_from_string(genome_str: str) -> neat.DefaultGenome:
-    """
-    WARNING: This function seems to not work correctly
-    Returns a renome based on a string that defines the genome. The user may have copied this from the console.
-    :param genome_str: The genome in the format of a string
-    :return: The genome in the format of the DefaultGenome class
-    """
-    genome = neat.DefaultGenome(key=0)
-    genome.connections.clear()
-    genome.nodes.clear()
-    
-    lines = genome_str.strip().split('\n')
-    for line in lines:
-        if line.startswith('\t') or line.startswith(' '):
-            line = line.strip()
-            if line.startswith('DefaultNodeGene'):
-                key = int(line.split('(')[1].split(')')[0])
-                attributes = line.split('=')[1].split(',')
-                bias = float(attributes[0].split('=')[1])
-                response = float(attributes[1].split('=')[1])
-                activation = attributes[2].split('=')[1].strip()
-                aggregation = attributes[3].split('=')[1].strip()
-                node_gene = neat.genes.DefaultNodeGene(key)
-                node_gene.bias = bias
-                node_gene.response = response
-                node_gene.activation = activation
-                node_gene.aggregation = aggregation
-                genome.nodes[key] = node_gene
-            elif line.startswith('DefaultConnectionGene'):
-                key = eval(line.split('(')[1].split(')')[0])
-                attributes = line.split('=')[1].split(',')
-                weight = float(attributes[0].split('=')[1])
-                enabled = attributes[1].split('=')[1].strip() == 'True'
-                connection_gene = neat.genes.DefaultConnectionGene(key)
-                connection_gene.weight = weight
-                connection_gene.enabled = enabled
-                genome.connections[key] = connection_gene
-    return genome
-
-
-def run_neat(config_path, extra_inputs: list or None = None, eval_func=XOR_eval, detail=True, display_best_genome=True,
+def run_neat(config_path, extra_inputs: list or None = None, eval_func=XOR_eval, detail=True, display_best_genome=False,
              display_best_output=True, display_best_fitness=True, checkpoint=None, checkpoints=False,
-             checkpoint_interval=100, generations=1_000, insert_genomes=False, genomes=None):
+             checkpoint_interval=100, generations=1_000, insert_genomes=False, genomes=None, save_best_genome=True):
     """
     Runs NEAT based on many parameters:
     :param config_path: The path to the configuration file (e.g. 'config-feedforward')
@@ -117,6 +77,7 @@ def run_neat(config_path, extra_inputs: list or None = None, eval_func=XOR_eval,
     :param generations: The number of generations to train the genomes
     :param insert_genomes: Whether to insert genomes into the start generation
     :param genomes: The genomes to be inserted into the start generation
+    :param save_best_genome: DANGEROUS - Whether to save the best genome when the simulation ends - DANGEROUS
     :return: The best genome in the final generation
     """
     config: neat.config.Config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
@@ -148,13 +109,22 @@ def run_neat(config_path, extra_inputs: list or None = None, eval_func=XOR_eval,
     
     winner = p.run(eval_func_compressed, generations)
     
-    if display_best_genome or winner.fitness >= config.fitness_threshold:
+    if display_best_genome:
         print(f'\nBest genome:\n{winner}')
     
     if display_best_fitness:
         print(f'\nBest Fitness: {winner.fitness:.3f}')
 
-    save_state(winner, 'successful-genome')
+    if save_best_genome:
+        save_state(winner, 'successful-genome')
+    else:
+        choice: str or None = None
+        while choice not in {'Y', 'N', 'n'}:
+            choice = input("Are you sure you don't want to save the best genome? (Y/n)  ")
+            if choice.lower() == 'n':
+                save_state(winner, 'successful-genome')
+            elif choice != 'Y':
+                print("Invalid choice. Try again.")
 
     if display_best_output:
         # Show output of the most fit genome against training data.
@@ -165,15 +135,15 @@ def run_neat(config_path, extra_inputs: list or None = None, eval_func=XOR_eval,
                 output = winner_net.activate(xi)
                 print(f"input {xi}, expected output {xo}, got {[round(x, 2) for x in output]}")
         except (RuntimeError, ValueError) as e:
-            print(f'Could not display input output pairs. Error: {e}')
+            print(f'Could not display input output pairs.\nError type: {type(e)}.\nError: {e}')
 
         try:
             kwargs = {'frames': 60 * 30, 'frames_per_step': 2, 'info': True, 'suppress': False} | extra_inputs[0]
             kwargs['visualize'] = True
-            agent: Agent = Agent(winner, config, 0, **kwargs)
+            agent: ExpertAgent = ExpertAgent(winner, config, 0, **kwargs)
             agent.run_frames()
         except Exception as e:
-            print(f"Could not visualize successful genome. Error: {e}")
+            print(f"Could not visualize successful genome.\nError type: {type(e)}.\nError: {e}")
     
     return winner
 
@@ -192,7 +162,7 @@ def test_neat() -> None:
     
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config-feedforward-test')
-    run_neat(config_path, extra_inputs=[input_output_pairs])
+    run_neat(config_path, extra_inputs=[input_output_pairs], save_best_genome=False)
 
 
 def main() -> None:
