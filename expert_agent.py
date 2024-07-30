@@ -9,15 +9,17 @@ class ExpertAgent(Agent):
                  *args: Any,
                  useless_action_set: set | None = None,
                  subtask: str = 'beam',
+                 additional_inputs: int = 5,
                  **kwargs: Any) -> None:
         if useless_action_set is None:
             useless_action_set = {0, 1, 2, 5}
         self.subtask: str = subtask
+        self.additional_inputs = additional_inputs
         self.load_states: list = find_all_files(subtask)
         super().__init__(*args, useless_action_set=useless_action_set, load_state=self.load_states[0], **kwargs)
 
     def run(self) -> None:
-        self.inputs = [*self.inputs, *[0 for _ in range(5)]]
+        self.inputs = [*self.inputs, *[0 for _ in range(self.additional_inputs)]]
         super().run()
 
     def add_incentive(self) -> None:

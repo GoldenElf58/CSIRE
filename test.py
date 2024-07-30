@@ -194,7 +194,7 @@ def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
                 env_data: ALEState = ale.cloneState()
                 save_state(env_data)
                 print("Game state saved.")
-            elif event.key == pygame.K_l:  # Load latest state
+            elif event.key in {pygame.K_l, pygame.K_w}:  # Load latest state
                 env_data: ALEState = load_latest_state()
                 ale.restoreState(env_data)
                 print("Game state loaded.")
@@ -265,6 +265,8 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
     """
     incentive: float = 0
     end: bool = False
+    if not give_incentive:
+        return incentive, last_life, end, death_clock
 
     if last_action == 0:
         death_clock += 1
@@ -288,12 +290,10 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
 
     if ram[3] == 7 and last_action not in {0, 1, 2, 5}:
         incentive += max(0, (.1 * (ram[42] / 255) ** 2 - (i * .00005)))
-    if not give_incentive:
-        incentive = 0
     return incentive, last_life, end, death_clock
 
 
-def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
+def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
                visualize=False, show_death_message=False, load_state=None) -> float:
     """
     Runs a given game for a specified number of frames based on user input
@@ -316,7 +316,8 @@ def run_frames(frames=100, info=False, frames_per_step=1, game='MontezumaRevenge
     for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
         incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock,
-                                                               show_death_message=show_death_message, i=i)
+                                                               show_death_message=show_death_message, i=i,
+                                                               give_incentive=False)
         reward += incentive
 
         if end:
@@ -349,8 +350,7 @@ def main() -> None:
         if choice == 'g':
             play_game(game='ALE/MontezumaRevenge-ram-v5')
         elif choice == 'a':
-            run_frames(frames=60 * 30, info=True, frames_per_step=1, visualize=True, show_death_message=True,
-                       load_state='beam-0')
+            run_frames(frames=60 ** 3, info=True, frames_per_step=1, visualize=True, show_death_message=True)
         else:
             print("Invalid choice. Try again.")
     elif choice == 'a':

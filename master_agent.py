@@ -12,13 +12,13 @@ class MasterAgent(Agent):
                  genome: DefaultGenome,
                  *args: Any,
                  expert_genomes: list[DefaultGenome],
-                 expert_config_path: str,
+                 expert_config_name: str,
                  useless_action_set: Any | None = None,
                  **kwargs: Any) -> None:
         if useless_action_set is None:
             useless_action_set = {0}
         expert_config: Config = Config(DefaultGenome, DefaultReproduction, DefaultSpeciesSet,
-                                       DefaultStagnation, expert_config_path)
+                                       DefaultStagnation, expert_config_name)
 
         self.expert_agents: list[ExpertAgent] = [ExpertAgent(expert_genome, expert_config, 0) for expert_genome in
                                                  expert_genomes]

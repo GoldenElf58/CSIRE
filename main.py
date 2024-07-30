@@ -33,20 +33,18 @@ def game_eval(genomes, config, func_params=None, run_func=Agent.run_frames, agen
 
 
 def train_expert(subtask: str = 'beam', base_filename: str = 'successful-genome',
-                 expert_config_name: str = 'config-feedforward-expert'):
+                 expert_config: str = 'config-feedforward-expert'):
     """
     Trains an expert for a given subtask
     :param subtask: The subtask to be trained on
     :param base_filename: The base filename before the subtask name
-    :param expert_config_name: The name of the configuration file for the expert agents
+    :param expert_config: The name of the configuration file for the expert agents
     :return:
     """
     if subtask is not None:
         base_filename = f'{base_filename}-{subtask}'
     successful_genomes = list(set(load_specific_state(file) for file in find_all_files(base_filename)))
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, expert_config_name)
-    successful_genome = run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
+    successful_genome = run_neat(expert_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
                                  checkpoint=find_most_recent_file('neat-checkpoint'), insert_genomes=True,
                                  genomes=successful_genomes, generations=2, base_filename=base_filename,
                                  extra_inputs=[{'visualize': False, 'agent_type': ExpertAgent, 'subtask': subtask}])
@@ -54,18 +52,15 @@ def train_expert(subtask: str = 'beam', base_filename: str = 'successful-genome'
 
 
 def train_master(expert_agents: list[DefaultGenome], base_filename: str = 'successful-genome-master',
-                 expert_config_name: str = 'config-feedforward-expert',
-                 master_config_name: str = 'config-feedforward-master') -> DefaultGenome:
+                 expert_config: str = 'config-feedforward-expert',
+                 master_config: str = 'config-feedforward-master') -> DefaultGenome:
     successful_genomes = list(set(load_specific_state(file) for file in find_all_files(base_filename)))
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, master_config_name)
-    expert_config_path = os.path.join(local_dir, expert_config_name)
-    successful_genome = run_neat(config_path, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
+    successful_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
                                  checkpoint=find_most_recent_file('neat-checkpoint'), insert_genomes=True,
                                  genomes=successful_genomes, generations=2, base_filename=base_filename,
                                  extra_inputs=[
                                      {'visualize': False, 'agent_type': MasterAgent, 'expert_agents': expert_agents,
-                                      'expert_config_path': expert_config_path}])
+                                      'expert_config_name': expert_config}])
     return successful_genome
 
 
@@ -74,15 +69,15 @@ def main() -> None:
     The main function of the program
     :return: None
     """
-    expert_config_name: str = 'config-feedforward-expert'
-    master_config_name: str = 'config-feedforward-master'
+    expert_config: str = 'config-feedforward-expert'
+    master_config: str = 'config-feedforward-master'
     subtasks: list[str] = ['beam']
     successful_genomes: dict[str, DefaultGenome] = {}
     for subtask in subtasks:
-        successful_genomes[subtask] = train_expert(subtask, expert_config_name)
+        successful_genomes[subtask] = train_expert(subtask, expert_config)
     expert_agents = list(successful_genomes.values())
-    train_master(expert_agents, expert_config_name=expert_config_name,
-                 master_config_name=master_config_name)
+    train_master(expert_agents, expert_config=expert_config,
+                 master_config=master_config)
 
 
 if __name__ == "__main__":

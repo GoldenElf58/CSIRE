@@ -92,7 +92,7 @@ class Agent:
         return self.ale
 
     def set_inputs(self, inputs):
-        self.inputs = inputs
+        self.inputs = [inpt / 255 for inpt in inputs]
 
     def get_outputs(self) -> list[float] | None:
         return self.outputs
@@ -154,7 +154,8 @@ class Agent:
         self.ale_init()
 
         for self.i in range(self.frames):
-            self.inputs = self.ram = self.ale.getRAM().reshape(1, -1)[0]
+            self.ram = self.ale.getRAM().reshape(1, -1)[0]
+            self.set_inputs(self.ram)
             self.add_incentive()
 
             if self.end:
@@ -190,7 +191,7 @@ def test_agent(agent_type: Callable = Agent):
                                                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                                     "config-feedforward")
     agent = agent_type(genome, config, 0, visualize=True, frames=60 * 30, frames_per_step=2, suppress=False,
-                       show_death_message=True, load_state='beam-0', info=True)
+                       show_death_message=True, info=True)
     agent.run_frames()
 
 
