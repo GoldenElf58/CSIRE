@@ -1,5 +1,7 @@
 from typing import Any
 
+from neat import Config, DefaultGenome, DefaultReproduction, DefaultSpeciesSet, DefaultStagnation
+
 from agent import Agent, test_agent
 from expert_agent import ExpertAgent
 from utils import run_neat_model, divide_list, average_elements_at_indexes
@@ -7,14 +9,20 @@ from utils import run_neat_model, divide_list, average_elements_at_indexes
 
 class MasterAgent(Agent):
     def __init__(self,
+                 genome: DefaultGenome,
                  *args: Any,
-                 expert_agents: list[ExpertAgent],
+                 expert_genomes: list[DefaultGenome],
+                 expert_config_path: str,
                  useless_action_set: Any | None = None,
                  **kwargs: Any) -> None:
         if useless_action_set is None:
             useless_action_set = {0}
-        self.expert_agents: list[ExpertAgent] = expert_agents
-        super().__init__(*args, useless_action_set, **kwargs)
+        expert_config: Config = Config(DefaultGenome, DefaultReproduction, DefaultSpeciesSet,
+                                       DefaultStagnation, expert_config_path)
+
+        self.expert_agents: list[ExpertAgent] = [ExpertAgent(expert_genome, expert_config, 0) for expert_genome in
+                                                 expert_genomes]
+        super().__init__(genome, *args, useless_action_set, **kwargs)
 
     def run(self) -> None:
         initial_outputs = run_neat_model(self.net, self.inputs)

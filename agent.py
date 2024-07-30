@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Callable
 
 import neat
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
@@ -12,7 +12,7 @@ class Agent:
     def __init__(self,
                  genome: DefaultGenome,
                  config: Config,
-                 index: Any,
+                 index: int,
                  frames: int = 60 * 30,
                  info: bool = False,
                  frames_per_step: int = 1,
@@ -23,16 +23,16 @@ class Agent:
                  seed: int = 123,
                  frame_skip: int = 1,
                  repeat_action_probability: int = 0,
-                 load_state: Any = None,
+                 load_state: str | None = None,
                  stall_length: int = 60 * 6,
                  stall_punishment: int = 100,
                  give_incentive: bool = True,
-                 useless_action_set: Any | None = None) -> None:
+                 useless_action_set: set | None = None) -> None:
         if useless_action_set is None:
             useless_action_set: set[int] = {0}
         self.index: int = index
-        self.genome = genome
-        self.config = config
+        self.genome: DefaultGenome = genome
+        self.config: Config = config
         self.net: neat.nn.FeedForwardNetwork = neat.nn.FeedForwardNetwork.create(genome, config)
         self.frames: int = frames
         self.info: bool = info
@@ -49,7 +49,7 @@ class Agent:
         self.stall_punishment: float = stall_punishment
         self.give_incentive: bool = give_incentive
         self.useless_action_set: set[int] = useless_action_set
-        self.i: int or None = None
+        self.i: int | None = None
         self.ram: None or list[int] = None
         self.inputs: None or list[int] = None
         self.outputs: None or list[float] = None
@@ -60,7 +60,7 @@ class Agent:
         self.death_clock: int = 0
         self.reward: float = 0
         self.game_reward: float = 0
-        self.ale: ALEInterface or None = None
+        self.ale: ALEInterface | None = None
 
     def ale_init(self):
         """
@@ -94,7 +94,7 @@ class Agent:
     def set_inputs(self, inputs):
         self.inputs = inputs
 
-    def get_outputs(self) -> list[float] or None:
+    def get_outputs(self) -> list[float] | None:
         return self.outputs
 
     def run(self) -> None:

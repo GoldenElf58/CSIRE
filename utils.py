@@ -1,10 +1,113 @@
+import concurrent.futures
+import itertools
 import os
 import pickle
-from typing import Any
+import sys
+import threading
+import time
+import traceback
+from typing import Any, Callable
 
 import neat
-
 from ale_py import Action, ALEInterface
+
+
+def clear(lines: int = 25) -> None:
+    """
+    Prints lines number of lines to the console to essentially 'clear' it
+    :param lines: Number of lines to clear
+    :return: None
+    """
+    sys.stdout.write('\r' + '\n' * lines + '\r')
+    sys.stdout.flush()
+
+
+def progress_bar(percent: float, bar_length=50, bar_loaded='█', bar_unloaded='░') -> str:
+    """
+    Returns a progress bar based on a percentage and bar length.
+    :param percent: Percentage of bar
+    :param bar_length: Length of bar
+    :param bar_loaded: Character when that segment of the bar is loaded
+    :param bar_unloaded: Character when that segment of the bar is not loaded
+    :return: Progress bar
+    """
+    progress_length = int(bar_length * percent)
+    bar = bar_loaded * progress_length + bar_unloaded * (bar_length - progress_length)
+    return bar
+
+
+def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
+    """
+    Shows a loading animation and other information while other tasks are running.
+    :param stop_event: When this function terminates (e.g. when the other tasks are over)
+    :param total_iterations: Total iterations into task (e.g. 50 iterations of function x)
+    :param current_iteration: Number of finished iterations (e.g. 23 iterations have been completed)
+    :param results: The fitnesses of the NEAT models, once they are finished
+    :param t0: The start time of the function
+    :return: None
+    """
+    loader = itertools.cycle(['|', '/', '-', '\\'])
+    while not stop_event.is_set():
+        percent_complete = (current_iteration[0] / total_iterations)
+        bar = progress_bar(percent_complete)
+        best = max(results, key=lambda x: x[0])[0] if len(results) > 0 else 0
+        time_elapsed = time.time() - t0
+        eta = time_elapsed * (1 / max(percent_complete, 4 / total_iterations) - 1)
+        print(
+            f"\r{next(loader)} {bar} - {percent_complete * 100:.1f}%, ETA: {eta // 60:.0f}m {eta % 60:.0f}s {best:.3f}",
+            end='')
+        time.sleep(0.5)  # Adjust the delay for visual effect
+
+
+def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs: None or list[dict] = None,
+                    iterations: int = 100) -> list:
+    """
+    Takes in a function, keyword arguments for that function, and a number of iterations, and runs that function in
+    parallel with those arguments for the given number of iterations
+    :param function: The function to be run in parallel
+    :param args: A list of lists of the arguments to be passed to each function
+    :param kwargs: A list of dictionaries of the arguments to be passed to each function
+    :param iterations: The number of times the function needs to be run
+    :return: A list of the results of each individual run of the function
+    """
+    results = []
+    stop_event = threading.Event()
+    current_iteration = [0]
+    t0 = time.time()
+
+    # Start the loading sign in a separate thread
+    loader_thread = threading.Thread(target=load, args=(stop_event, iterations, current_iteration, results, t0))
+    loader_thread.start()
+
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        if kwargs is None:
+            if args is None:
+                futures = [executor.submit(function) for _ in range(iterations)]
+            else:
+                futures = [executor.submit(function, *args[i]) for i in range(iterations)]
+        else:
+            if args is None:
+                futures = [executor.submit(function, **kwargs[i]) for i in range(iterations)]
+            else:
+                futures = [executor.submit(function, *args[i], **kwargs[i]) for i in range(iterations)]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                results.append(result)
+            except KeyboardInterrupt:
+                sys.exit()
+            except Exception as e:
+                print("An error occurred:")
+                traceback.print_exc()
+                print(e)
+                results.append(None)
+            current_iteration[0] += 1  # Increment the iteration count
+
+    # Stop the loading sign
+    stop_event.set()
+    loader_thread.join()
+    clear()
+    return results
 
 
 def find_most_recent_file(base_filename='neat_checkpoint'):
@@ -74,12 +177,12 @@ def save_specific_state(data: Any, filename: str, choice: str = 'Y'):
         pickle.dump(data, file)
 
 
-def load_latest_state(base_filename="save-state"):
+def load_latest_state(base_filename="save-state") -> Any | None:
     """Loads data from the most recent file with the given base filename.
         :param base_filename: The base filename (without extension).
         :return: The loaded data, or None if no matching files are found.
     """
-    latest_filename = find_most_recent_file(base_filename)
+    latest_filename: str = find_most_recent_file(base_filename)
 
     if latest_filename is not None:
         return load_specific_state(latest_filename)
@@ -87,7 +190,7 @@ def load_latest_state(base_filename="save-state"):
     return None  # No matching files found
 
 
-def load_specific_state(filename: str):
+def load_specific_state(filename: str) -> Any | None:
     """
     Loads a game state with a specific filename.
     :param filename: Filename with game state to be loaded
