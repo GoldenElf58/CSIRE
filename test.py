@@ -5,6 +5,7 @@ This file is for testing purposes and has many of the same functions in main.py
 import sys
 import time
 from collections import defaultdict
+from typing import Any
 
 import gym
 import numpy as np
@@ -23,6 +24,58 @@ RED_COLOR = "\033[91m"
 YELLOW_COLOR = "\033[93m"
 GREEN_COLOR = "\033[92m"
 CYAN_COLOR = '\033[96m'
+global previous_ram
+
+
+def display_ram_info(action: Any, ale_env: ALEInterface, action_counts: defaultdict[Any, int],
+                     ram_changes: defaultdict[Any, np.ndarray[Any, np.dtype]]
+                     ) -> tuple[defaultdict[Any, int], defaultdict[Any, np.ndarray[Any, np.dtype]]]:
+    """
+    Displays the RAM and info about the amount of times different bytes change
+    :param action: The action the user just took
+    :param ale_env: The ale_env the user is playing in
+    :param action_counts: The counts of how many each type of action the user has taken
+    :param ram_changes: The previous changes in the ram
+    :return: Tuple containing: action_counts, ram_changes
+    """
+    global previous_ram
+
+    # Get RAM data
+    ram = ale_env.getRAM()
+
+    if previous_ram is None:
+        previous_ram = np.zeros_like(ram)
+
+    # Track changes for the current action
+    action_counts[action] += 1
+    ram_changes[action] += (ram != previous_ram)
+
+    # Determine frequently changing bytes
+    frequently_changing = ram_changes[action] / action_counts[action] > 0.25
+    rarely_changing = ram_changes[action] / action_counts[action] < 0.05
+    noop_frequently_changing = ram_changes[0] / action_counts[0] > 0.25 if action_counts[0] > 0 else np.zeros_like(
+        frequently_changing)
+
+    ram_str = ''
+    for i, byte in enumerate(ram):
+        byte_str = f'{i:03d}:'
+        if frequently_changing[i] and not noop_frequently_changing[i]:
+            byte_str += f'{GREEN_COLOR}{byte:03d}{RESET_COLOR} '
+        elif frequently_changing[i]:
+            byte_str += f'{YELLOW_COLOR}{byte:03d}{RESET_COLOR} '
+        elif byte != previous_ram[i]:
+            byte_str += f'{RED_COLOR}{byte:03d}{RESET_COLOR} '
+        elif rarely_changing[i]:
+            byte_str += f'{RESET_COLOR}{byte:03d}{RESET_COLOR} '
+        else:
+            byte_str += f'{CYAN_COLOR}{byte:03d}{RESET_COLOR} '
+        ram_str += byte_str
+
+    previous_ram = ram
+
+    sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)))
+    sys.stdout.flush()
+    return action_counts, ram_changes
 
 
 def play_game(game='MontezumaRevenge-v4') -> None:
@@ -32,6 +85,7 @@ def play_game(game='MontezumaRevenge-v4') -> None:
     :param game: The name of the game (e.g. 'MonteumaRevenge-v4')
     :return: Non
     """
+    global previous_ram
     env: gym.Env = gym.make(game, render_mode='rgb_array')
     keys_to_action = {
         (pygame.K_SPACE,): 1,
@@ -52,10 +106,10 @@ def play_game(game='MontezumaRevenge-v4') -> None:
         (pygame.K_DOWN, pygame.K_RIGHT, pygame.K_SPACE): 16,
         (pygame.K_DOWN, pygame.K_LEFT, pygame.K_SPACE): 17,
     }
-    ale_env = env.unwrapped.ale  # Access the ALE environment
+    ale_env: ALEInterface = env.unwrapped.ale  # Access the ALE environment
     previous_ram = None
-    ram_changes = defaultdict(lambda: np.zeros(128, dtype=int))  # Track changes per action
-    action_counts = defaultdict(int)  # Track the number of times each action was pressed
+    ram_changes: defaultdict[Any, np.ndarray[Any, np.dtype]] = defaultdict(lambda: np.zeros(128, dtype=int))
+    action_counts: defaultdict[Any, int] = defaultdict(int)  # Track the number of times each action was pressed
 
     def callback(obs_t, obs_tp1, action, rew, terminated, truncated, info) -> None:
         """
@@ -69,43 +123,7 @@ def play_game(game='MontezumaRevenge-v4') -> None:
         :param info: Not used.
         :return: None
         """
-        nonlocal previous_ram
-
-        # Get RAM data
-        ram = ale_env.getRAM()
-
-        if previous_ram is None:
-            previous_ram = np.zeros_like(ram)
-
-        # Track changes for the current action
-        action_counts[action] += 1
-        ram_changes[action] += (ram != previous_ram)
-
-        # Determine frequently changing bytes
-        frequently_changing = ram_changes[action] / action_counts[action] > 0.25
-        rarely_changing = ram_changes[action] / action_counts[action] < 0.05
-        noop_frequently_changing = ram_changes[0] / action_counts[0] > 0.25 if action_counts[0] > 0 else np.zeros_like(
-            frequently_changing)
-
-        ram_str = ''
-        for i, byte in enumerate(ram):
-            byte_str = f'{i:03d}:'
-            if frequently_changing[i] and not noop_frequently_changing[i]:
-                byte_str += f'{GREEN_COLOR}{byte:03d}{RESET_COLOR} '
-            elif frequently_changing[i]:
-                byte_str += f'{YELLOW_COLOR}{byte:03d}{RESET_COLOR} '
-            elif byte != previous_ram[i]:
-                byte_str += f'{RED_COLOR}{byte:03d}{RESET_COLOR} '
-            elif rarely_changing[i]:
-                byte_str += f'{RESET_COLOR}{byte:03d}{RESET_COLOR} '
-            else:
-                byte_str += f'{CYAN_COLOR}{byte:03d}{RESET_COLOR} '
-            ram_str += byte_str
-
-        previous_ram = ram
-
-        sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)))
-        sys.stdout.flush()
+        display_ram_info(action, ale_env, action_counts, ram_changes)
 
     play(env, keys_to_action=keys_to_action, callback=callback)
 
@@ -307,17 +325,20 @@ def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRev
     :param load_state: File to load a save state from
     :return: The total reward over all steps the user recieved
     """
+    global previous_ram
+    previous_ram = None
     ale: ALEInterface = ale_init(game, suppress=suppress, visualize=visualize, load_state=load_state)
     reward: float = 0
     last_action: int = 0
     last_life: bool = False
     death_clock: int = 0
+    ram_changes: defaultdict[Any, np.ndarray[Any, np.dtype]] = defaultdict(lambda: np.zeros(128, dtype=int))
+    action_counts: defaultdict[Any, int] = defaultdict(int)  # Track the number of times each action was pressed
 
     for i in range(frames):
         inputs = ale.getRAM().reshape(1, -1)[0]
-        incentive, last_life, end, death_clock = add_incentive(inputs, last_life, last_action, death_clock,
-                                                               show_death_message=show_death_message, i=i,
-                                                               give_incentive=False)
+        temp_tuple = add_incentive(inputs, last_life, last_action, death_clock, show_death_message, False, i)
+        incentive, last_life, end, death_clock = temp_tuple
         reward += incentive
 
         if end:
@@ -329,6 +350,8 @@ def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRev
             last_action = action_index
         else:
             reward += take_action(last_action, ale)
+
+        action_counts, ram_changes = display_ram_info(last_action, ale, action_counts, ram_changes)
 
     if info:
         print(f'Total Reward: {reward}')

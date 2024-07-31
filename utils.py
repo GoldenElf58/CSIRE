@@ -1,5 +1,6 @@
 import concurrent.futures
 import itertools
+from math import sqrt
 import os
 import pickle
 import sys
@@ -318,3 +319,7 @@ def run_neat_model(model, inputs) -> list[float]:
     :return: Model results
     """
     return model.activate(inputs)
+
+
+def distance(x1: float, y1: float, x2: float, y2: float) -> float:
+    return sqrt((x1-x2) ** 2 + (y1 - y2) ** 2)

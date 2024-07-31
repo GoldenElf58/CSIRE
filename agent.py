@@ -62,7 +62,7 @@ class Agent:
         self.game_reward: float = 0
         self.ale: ALEInterface | None = None
 
-    def ale_init(self):
+    def ale_init(self) -> None:
         """
         Loads the ALEInterface for the Agent
         :return: An ALEInterface with a game loaded
@@ -81,20 +81,32 @@ class Agent:
         game = convert_game_name(self.game, True)
         rom = getattr(roms, game)
         self.ale.loadROM(rom)
+        self.load_new_state()  # Will only load state if load_state is not None
 
+    def load_new_state(self) -> None:
+        """
+        Loads the new state based on the load_state variable
+        :return: None
+        """
         if self.load_state is not None:
             env_data: ALEState = load_specific_state(self.load_state)
             self.ale.restoreState(env_data)
             if not self.suppress:
                 print(f"Game state loaded from {self.load_state}")
-            return self.ale
 
-        return self.ale
-
-    def set_inputs(self, inputs):
+    def set_inputs(self, inputs) -> None:
+        """
+        Sets the inputs and normalizes them
+        :param inputs: The inputs to be set to
+        :return: None
+        """
         self.inputs = [inpt / 255 for inpt in inputs]
 
     def get_outputs(self) -> list[float] | None:
+        """
+        Gets the outputs of the Agent
+        :return: The outputs of the agent
+        """
         return self.outputs
 
     def run(self) -> None:
@@ -104,7 +116,7 @@ class Agent:
         """
         self.outputs = run_neat_model(self.net, self.inputs)
 
-    def terminate(self, death_message="Dead", punishment=100) -> None:
+    def terminate(self, death_message="Dead", punishment=-100) -> None:
         """
         Terminates/kills an agent playing a game (e.g. Montezuma's Revenge) and gives a punishment for that
         :param death_message: The message to print to the console when the agent's process terminates
@@ -113,7 +125,7 @@ class Agent:
         """
         if self.show_death_message:
             print(f'\n{death_message}')
-        self.incentive -= punishment
+        self.incentive += punishment
         self.end: bool = True
 
     def add_incentive(self) -> None:
@@ -131,14 +143,14 @@ class Agent:
         else:
             self.death_clock = 0
         if self.death_clock >= self.stall_length:
-            self.terminate(death_message='Dead - Stalling', punishment=100)
+            self.terminate(death_message='Dead - Stalling', punishment=-100)
 
         match lives:
             case 0:
                 if death_scene_countdown == 0:
                     self.last_life = True
                 if death_scene_countdown > 0 and self.last_life:
-                    self.terminate(death_message='Dead - Last Life', punishment=15)
+                    self.terminate(death_message='Dead - Last Life', punishment=-15)
             case _:
                 self.incentive += lives * .001
 
@@ -151,8 +163,6 @@ class Agent:
         A function that lets an agent play a given game for a given number of steps.
         :return: A tuple containing: (The total reward over all steps the agent recieved, The genome's index)
         """
-        self.ale_init()
-
         for self.i in range(self.frames):
             self.ram = self.ale.getRAM().reshape(1, -1)[0]
             self.set_inputs(self.ram)
@@ -174,12 +184,26 @@ class Agent:
                 self.reward += game_reward
 
         if self.info:
+            print(f'Index: {self.index}')
+            print(f'Subtask: {self.load_state}')
             print(f'Total Reward: {self.reward}')
-            print(f'Total Game Reward {self.game_reward}')
+            print(f'Total Game Reward: {self.game_reward}')
         return self.reward, self.index
 
+    def test_agent(self) -> tuple[float, int]:
+        self.ale_init()
+        return self.run_frames()
 
-def test_agent(agent_type: Callable = Agent):
+
+def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None) -> None:
+    """
+    Tests a chosen agent or the most recent one
+    :param agent_type: The type of Agent to be tested
+    :param kwargs: Any additional parameters for the testing
+    :return: None
+    """
+    if kwargs is None:
+        kwargs: dict = {}
     choice = input("Specific file? (y/n)  ").lower()
     if choice == 'y':
         genome = load_specific_state(input("Load genome from:  "))
@@ -191,8 +215,8 @@ def test_agent(agent_type: Callable = Agent):
                                                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                                     "config-feedforward")
     agent = agent_type(genome, config, 0, visualize=True, frames=60 * 30, frames_per_step=2, suppress=False,
-                       show_death_message=True, info=True)
-    agent.run_frames()
+                       show_death_message=True, info=True, **kwargs)
+    agent.test_agent()
 
 
 def main() -> None:
