@@ -4,6 +4,7 @@ This file is used for the genetic algorithm NEAT
 
 import os
 import time
+import traceback
 
 from neat import (Config, DefaultGenome, StdOutReporter, DefaultReproduction, DefaultSpeciesSet, DefaultStagnation,
                   Checkpointer, Population, StatisticsReporter, nn)
@@ -62,12 +63,83 @@ def XOR_eval(genomes, config, input_output_pairs=None):
             genome.fitness -= sum((output[i] - expected_outputs[i]) ** 2 for i in range(len(output)))
 
 
+def adjust_genome_node_ids(genome, start_id):
+    node_mapping = {}
+    for i, node_key in enumerate(sorted(genome.nodes.keys())):
+        node_mapping[node_key] = start_id + i
+
+    new_nodes = {}
+    for old_id, new_id in node_mapping.items():
+        new_nodes[new_id] = genome.nodes[old_id]
+    genome.nodes = new_nodes
+
+    new_connections = {}
+    for conn_key, conn in genome.connections.items():
+        try:
+            new_key = (node_mapping[conn_key], node_mapping[conn_key[1]])
+        except KeyError as e:
+            print(f"Error in connection keys: {conn_key}")
+            print(f"Node mapping: {node_mapping}")
+            raise e
+        new_connections[new_key] = conn
+    genome.connections = new_connections
+
+
+def get_highest_node_id(population):
+    highest_node_id = -1
+    for genome_id, genome in population.items():
+        for node_id in genome.nodes.keys():
+            highest_node_id = max(highest_node_id, node_id)
+    return highest_node_id
+
+
+def insert_genomes_into_population(p, genomes):
+    if p.population:
+        highest_node_id = get_highest_node_id(p.population)
+    else:
+        highest_node_id = -1
+
+    for genome in genomes:
+        if highest_node_id >= 0:
+            adjust_genome_node_ids(genome, highest_node_id + 1)
+        highest_node_id += len(genome.nodes)
+        p.population[genome.key] = genome
+        p.species.genome_to_species[genome.key] = genome
+
+
+def insert_genome(population, genome, start_id):
+    """Inserts a genome into a population, ensuring no negative node keys.
+
+    Args:
+        population: The population to insert into.
+        genome: The genome to insert.
+        start_id: The starting ID for newly added nodes.
+
+    Returns:
+        The updated starting ID for subsequent node additions.
+    """
+    # Find minimum node key in the genome
+    min_node_key = min(genome.nodes.keys())
+
+    # Adjust node keys if minimum is negative
+    if min_node_key < 0:
+        offset = abs(min_node_key)
+        genome.nodes = {k + offset: v for k, v in genome.nodes.items()}
+        genome.connections = {(k1 + offset, k2 + offset): v for (k1, k2), v in genome.connections.items()}
+
+    # Insert the genome with adjusted keys
+    population.nodes = {**population.nodes, **genome.nodes}
+    population.connections = {**population.connections, **genome.connections}
+    return start_id + len(genome.nodes)
+
+
 def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, detail=True, display_best_genome=False,
              display_best_output=True, display_best_fitness=True, checkpoint=None, checkpoints=True,
              checkpoint_interval=100, generations=1_000, insert_genomes=False, genomes=None, report_interval=2,
-             save_best_genome=True, base_filename='successful-genome') -> DefaultGenome:
-    """
-    Runs NEAT based on many parameters:
+             save_best_genome=True, base_filename='successful-genome',
+             base_checkpoint_filename='neat-checkpoint') -> DefaultGenome:
+    """Runs NEAT based on many parameters:
+
     :param config_path: The path to the configuration file (e.g. 'config-feedforward')
     :param extra_inputs: Extra inputs to be given to the evaluation function
     :param eval_func: The evaluation function
@@ -79,11 +151,12 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
     :param checkpoints: Whether to create checkpoints of the generations
     :param checkpoint_interval: The number of generations minus one between each checkpoint
     :param generations: The number of generations to train the genomes
-    :param insert_genomes: Whether to insert genomes into the start generation
+    :param insert_genomes: Whether to insert genomes into the start generation - WARNING: Can lead to errors
     :param genomes: The genomes to be inserted into the start generation
     :param report_interval: Minimum seconds between generation reporting
     :param save_best_genome: DANGEROUS - Whether to save the best genome when the simulation ends - DANGEROUS
     :param base_filename: The base file name for the file the best genome will be saved in
+    :param base_checkpoint_filename: The base filename for neat checkpoints
     :return: The best genome in the final generation
     """
     config: Config = Config(DefaultGenome, DefaultReproduction, DefaultSpeciesSet, DefaultStagnation, config_path)
@@ -96,14 +169,12 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
         p = Population(config)
 
     if insert_genomes and genomes is not None:
-        for genome in genomes:
-            p.population[genome.key] = genome
-            p.species.genome_to_species[genome.key] = genome
+        insert_genomes_into_population(p, genomes)
 
     p.add_reporter(TimedReporter(detail, interval=report_interval))
     p.add_reporter(StatisticsReporter())
     if checkpoints:
-        p.add_reporter(Checkpointer(checkpoint_interval))
+        p.add_reporter(Checkpointer(checkpoint_interval, filename_prefix=f'{base_checkpoint_filename}-'))
 
     def eval_func_compressed(eval_genomes, eval_config):
         if extra_inputs is None:
@@ -141,14 +212,17 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
                     print(f"input {xi}, expected output {xo}, got {[round(x, 2) for x in output]}")
             except (RuntimeError, ValueError) as e:
                 print(f'Could not display input output pairs.\nError type: {type(e)}.\nError: {e}')
+                traceback.print_exc()
         else:
             try:
-                kwargs = {'frames': 60 * 30, 'frames_per_step': 2, 'info': True, 'suppress': False} | extra_inputs[0]
+                kwargs = {'frames': 60 * 30, 'frames_per_step': 2, 'suppress': False} | extra_inputs[0]
                 kwargs['visualize'] = True
-                agent: ExpertAgent = ExpertAgent(winner, config, 0, **kwargs)
-                agent.run_frames()
+                kwargs['info'] = True
+                agent: ExpertAgent = ExpertAgent(winner, config, -1, **kwargs)
+                agent.test_agent()
             except Exception as e:
                 print(f"Could not visualize successful genome.\nError type: {type(e)}.\nError: {e}")
+                traceback.print_exc()
 
     return winner
 

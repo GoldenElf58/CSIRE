@@ -22,7 +22,7 @@ class MasterAgent(Agent):
 
         self.expert_agents: list[ExpertAgent] = [ExpertAgent(expert_genome, expert_config, 0) for expert_genome in
                                                  expert_genomes]
-        super().__init__(genome, *args, useless_action_set, **kwargs)
+        super().__init__(genome, *args, useless_action_set=useless_action_set, **kwargs)
 
     def run(self) -> None:
         initial_outputs = run_neat_model(self.net, self.inputs)
@@ -30,7 +30,7 @@ class MasterAgent(Agent):
         for i, expert_agent in enumerate(self.expert_agents):
             inputs = [*self.inputs, *individual_inputs[i]]
             expert_agent.set_inputs(inputs)
-            expert_agent.run()
+            expert_agent.run_with_current_inputs()
         individual_outputs = [expert_agent.get_outputs() for expert_agent in self.expert_agents]
         self.outputs = average_elements_at_indexes(individual_outputs)
 

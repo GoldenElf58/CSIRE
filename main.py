@@ -6,7 +6,7 @@ from agent import Agent
 from expert_agent import ExpertAgent
 from master_agent import MasterAgent
 from neuroevolution import run_neat
-from utils import find_most_recent_file, load_specific_state, find_all_files, run_in_parallel
+from utils import find_most_recent_file, run_in_parallel
 
 
 def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent, run_func=None) -> None:
@@ -20,7 +20,7 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
     :return: None
     """
     if run_func is None:
-        run_func = agent_type.run_frames
+        run_func = agent_type.test_agent
     if func_params is None:
         func_params = {}
     args = []
@@ -34,13 +34,14 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
 
 
 def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_filename: str = 'successful-genome',
-                 expert_config: str = 'config-feedforward-expert'):
+                 expert_config: str = 'config-feedforward-expert', checkpoint_name=None):
     """
     Trains an expert for a given subtask
     :param subtask: The subtask to be trained on
     :param subtask_scenarios: The different scenarios a subtask has
     :param base_filename: The base filename before the subtask name
     :param expert_config: The name of the configuration file for the expert agents
+    :param checkpoint_name: Name of the checkpoint file
     :return:
     """
     if subtask_scenarios is None:
@@ -62,26 +63,38 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
 
     if subtask is not None:
         base_filename = f'{base_filename}-{subtask}'
-    successful_genomes = list(set(load_specific_state(file) for file in find_all_files(base_filename)))
+    if checkpoint_name is None:
+        checkpoint_name = f'neat-checkpoint-{subtask}'
+    successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
     best_genome = run_neat(expert_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
-                           checkpoint=find_most_recent_file('neat-checkpoint'), insert_genomes=True,
-                           genomes=successful_genomes, generations=2, base_filename=base_filename,
-                           extra_inputs=[{'visualize': True, 'subtask': subtask, 'info': True,
-                                          'subtask_scenarios': subtask_scenarios}, ExpertAgent, ExpertAgent.test_agent])
+                           checkpoint=find_most_recent_file(f'neat-checkpoint-{subtask}'), insert_genomes=False,
+                           genomes=successful_genomes, generations=1_000, base_filename=base_filename,
+                           base_checkpoint_filename=checkpoint_name,
+                           extra_inputs=[{'visualize': False, 'subtask': subtask, 'info': False,
+                                          'subtask_scenarios': subtask_scenarios}, ExpertAgent])
     return best_genome
 
 
-def train_master(expert_agents: list[DefaultGenome], base_filename: str = 'successful-genome-master',
-                 expert_config: str = 'config-feedforward-expert',
+def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'successful-genome-master',
+                 expert_config: str = 'config-feedforward-expert', checkpoint_name: str = 'neat-checkpoint-master',
                  master_config: str = 'config-feedforward-master') -> DefaultGenome:
-    successful_genomes = list(set(load_specific_state(file) for file in find_all_files(base_filename)))
-    successful_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
-                                 checkpoint=find_most_recent_file('neat-checkpoint'), insert_genomes=True,
-                                 genomes=successful_genomes, generations=2, base_filename=base_filename,
-                                 extra_inputs=[
-                                     {'visualize': False, 'agent_type': MasterAgent, 'expert_agents': expert_agents,
-                                      'expert_config_name': expert_config}])
-    return successful_genome
+    """
+    Trains an expert for a given subtask
+    :param expert_genomes: The previously trained expert genomes
+    :param base_filename: The base filename before the subtask name
+    :param expert_config: The name of the configuration file for the expert agents
+    :param master_config: The name of the configuration file for the master agent
+    :param checkpoint_name: Name of the checkpoint file
+    :return:
+    """
+    successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
+    best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
+                           checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,
+                           genomes=successful_genomes, generations=1_000, base_filename=base_filename,
+                           base_checkpoint_filename=checkpoint_name,
+                           extra_inputs=[{'visualize': False, 'expert_genomes': expert_genomes,
+                                          'expert_config_name': expert_config}, MasterAgent])
+    return best_genome
 
 
 def main() -> None:
@@ -90,7 +103,7 @@ def main() -> None:
     :return: None
     """
     subtasks: list[str] = ['beam']
-    subtask_dicts: dict = {'beam': {
+    subtask_dicts: dict[str, dict[str, dict[str, set[int] | list[list[int]]]]] = {'beam': {
         'beam-0': {
             'room_set': {7, 13},
             'subtask_goals': [[130, 252], [77, 134]]
@@ -113,8 +126,7 @@ def main() -> None:
         successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dicts[subtask],
                                                    expert_config=expert_config)
     expert_agents = list(successful_genomes.values())
-    train_master(expert_agents, expert_config=expert_config,
-                 master_config=master_config)
+    train_master(expert_agents, expert_config=expert_config, master_config=master_config)
 
 
 if __name__ == "__main__":

@@ -98,10 +98,13 @@ def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs:
             except KeyboardInterrupt:
                 sys.exit()
             except Exception as e:
-                print("An error occurred:")
-                traceback.print_exc()
-                print(e)
-                results.append(None)
+                stop_event.set()
+                loader_thread.join()
+                raise e
+                # print("An error occurred:")
+                # traceback.print_exc()
+                # print(e)
+                # results.append(None)
             current_iteration[0] += 1  # Increment the iteration count
 
     # Stop the loading sign

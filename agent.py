@@ -214,7 +214,7 @@ def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None) -> None
     config: neat.config.Config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                                     neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                                     "config-feedforward")
-    agent = agent_type(genome, config, 0, visualize=True, frames=60 * 30, frames_per_step=2, suppress=False,
+    agent = agent_type(genome, config, -1, visualize=True, frames=60 * 30, frames_per_step=2, suppress=False,
                        show_death_message=True, info=True, **kwargs)
     agent.test_agent()
 

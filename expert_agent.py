@@ -104,6 +104,7 @@ class ExpertAgent(Agent):
         for self.load_state in self.load_states:
             self.end = False
             self.goal_index = 0
+            self.last_life = False
             if self.set_goal() == -1 or self.set_room_set() == -1:
                 continue
             self.load_new_state()
