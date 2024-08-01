@@ -57,9 +57,7 @@ class ExpertAgent(Agent):
         super().add_incentive()
         self.incentive: float = 0
         room_number: int = self.ram[3]
-        x: int = self.ram[42]
-        y: int = self.ram[43]
-        distance_to_goal = distance(x, y, self.x_goal, self.y_goal)
+        distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
 
         if self.subtask == 'beam':
             if room_number not in self.room_set and self.i > 0:

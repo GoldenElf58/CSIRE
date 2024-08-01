@@ -13,10 +13,11 @@ import pygame
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
 from gym.utils.play import play
 
-from expert_agent import test_expert_agent
-from neuroevolution import test_neat
+from main import game_eval
+from expert_agent import test_expert_agent, ExpertAgent
+from neuroevolution import test_neat, run_neat
 from utils import (save_state, save_specific_state, load_specific_state, load_latest_state, take_action,
-                   convert_game_name)
+                   convert_game_name, find_most_recent_file)
 
 # ANSI escape codes for colors
 RESET_COLOR = "\033[0m"
@@ -363,7 +364,8 @@ def main() -> None:
     The main function of the program
     :return: None
     """
-    choice = input("Test NEAT (N/n), play game (G/g), or test best agent (A/a)?  ").lower()
+    choice = input(
+        "Test NEAT (N/n), play game (G/g), or test best agent (A/a), or visualize a generation(V/v)?  ").lower()
     t0 = time.perf_counter()
     if choice == 'n':
         test_neat()
@@ -378,6 +380,33 @@ def main() -> None:
             print("Invalid choice. Try again.")
     elif choice == 'a':
         test_expert_agent()
+    elif choice == 'v':
+        subtask_scenarios: dict = {
+            'beam-0': {
+                'room_set': {7, 13},
+                'subtask_goals': [[130, 252], [77, 134]]
+            }, 'beam-1': {
+                'room_set': {11, 12},
+                'subtask_goals': [[0, 235]]
+            }, 'beam-2': {
+                'room_set': {12, 13},
+                'subtask_goals': [[152, 235]]
+            }, 'beam-3': {
+                'room_set': {0, 4},
+                'subtask_goals': [[25, 252], [77, 134]]
+            }
+        }
+        base_filename = 'successful-genome'
+        subtask = 'beam'
+        base_filename = f'{base_filename}-{subtask}'
+        checkpoint_name = f'neat-checkpoint-{subtask}'
+        expert_config: str = 'config-feedforward-expert'
+        successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
+        run_neat(expert_config, eval_func=game_eval, checkpoints=False, checkpoint_interval=1, generations=1,
+                 checkpoint=find_most_recent_file(f'neat-checkpoint-{subtask}'), insert_genomes=False,
+                 genomes=successful_genomes, base_filename=base_filename, base_checkpoint_filename=checkpoint_name,
+                 extra_inputs=[{'visualize': False, 'subtask': subtask, 'info': False,
+                                'subtask_scenarios': subtask_scenarios}, ExpertAgent])
     else:
         print("Invalid choice. Try again.")
     t1 = time.perf_counter()

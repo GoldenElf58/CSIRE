@@ -6,8 +6,8 @@ import pickle
 import sys
 import threading
 import time
-import traceback
 from typing import Any, Callable
+import warnings
 
 import neat
 from ale_py import Action, ALEInterface
@@ -325,4 +325,10 @@ def run_neat_model(model, inputs) -> list[float]:
 
 
 def distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    return sqrt((x1-x2) ** 2 + (y1 - y2) ** 2)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            return sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+    except RuntimeWarning as e:
+        print(f"RuntimeWarning caught: {e}, Coordinates: {(x1, y1), (x2, y2)}")
+        return float('inf')

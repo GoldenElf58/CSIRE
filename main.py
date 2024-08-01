@@ -67,7 +67,7 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     if checkpoint_name is None:
         checkpoint_name = f'neat-checkpoint-{subtask}'
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
-    best_genome = run_neat(expert_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
+    best_genome = run_neat(expert_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=50,
                            checkpoint=find_most_recent_file(f'neat-checkpoint-{subtask}'), insert_genomes=False,
                            genomes=successful_genomes, generations=1_000, base_filename=base_filename,
                            base_checkpoint_filename=checkpoint_name,
@@ -90,7 +90,7 @@ def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'succ
     """
     print(f"===============\nTraining Master\n===============")
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
-    best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
+    best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=50,
                            checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,
                            genomes=successful_genomes, generations=1_000, base_filename=base_filename,
                            base_checkpoint_filename=checkpoint_name,

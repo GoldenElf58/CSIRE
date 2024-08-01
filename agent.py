@@ -49,6 +49,10 @@ class Agent:
         self.stall_punishment: float = stall_punishment
         self.give_incentive: bool = give_incentive
         self.useless_action_set: set[int] = useless_action_set
+        self.x: int = 0
+        self.y: int = 0
+        self.last_x: int = 0
+        self.last_y: int = 0
         self.i: int | None = None
         self.ram: None or list[int] = None
         self.inputs: None or list[int] = None
@@ -137,8 +141,10 @@ class Agent:
         self.incentive: float = 0
         lives: int = self.ram[58]
         death_scene_countdown: int = self.ram[55]
+        self.x = float(self.ram[42])
+        self.y = float(self.ram[43])
 
-        if self.last_action in self.useless_action_set:
+        if self.last_action in self.useless_action_set or (self.x, self.y) == (self.last_x, self.last_y):
             self.death_clock += 1
         else:
             self.death_clock = 0
@@ -156,6 +162,8 @@ class Agent:
 
         if not self.give_incentive:
             self.incentive = 0
+        self.last_x = self.x
+        self.last_y = self.y
         self.reward += self.incentive
 
     def run_frames(self) -> tuple[float, int]:
