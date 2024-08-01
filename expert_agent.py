@@ -14,7 +14,7 @@ class ExpertAgent(Agent):
                  additional_inputs: int = 5,
                  **kwargs: Any) -> None:
         if useless_action_set is None:
-            useless_action_set = {0, 1, 2, 5}
+            useless_action_set = {0}
         if room_set is None:
             room_set = {7}
         if subtask_scenarios is None:
@@ -66,7 +66,7 @@ class ExpertAgent(Agent):
                 self.terminate(death_message=f'Dead - Wrong Screen ({room_number})', punishment=-200)
 
             if room_number in self.room_set and self.last_action not in self.useless_action_set:
-                self.incentive += ((1 - (distance_to_goal / 300)) * 0.5) ** 2
+                self.incentive += ((1 - (distance_to_goal / 215)) * 0.1) ** 2
 
         if distance_to_goal < 5 and self.i > 0:
             if self.set_goal() == 0:
@@ -105,14 +105,22 @@ class ExpertAgent(Agent):
             self.end = False
             self.goal_index = 0
             self.last_life = False
-            if self.set_goal() == -1 or self.set_room_set() == -1:
+            goal_result, room_result = self.set_goal(), self.set_room_set()
+            if goal_result == -2 or room_result == -2:
+                raise RuntimeError(f"Goal Result was: {goal_result}, Room Result was: {room_result}")
+            elif goal_result == -1 or room_result == -1:
                 continue
             self.load_new_state()
             self.run_frames()
+            if self.info:
+                print(f'Load State: {self.load_state}')
+                print(f'Subtask Scenarios: {self.subtask_scenarios}')
+                print(f'Goal Index: {self.goal_index}')
+                print(f'Goal: {self.x_goal, self.y_goal}')
         return self.reward, self.index
 
 
-def test_expert_agent(kwargs=None) -> None:
+def test_expert_agent(config_name='config-feedforward-expert', kwargs=None) -> None:
     """
     Tests an ExpertAgent
     :param kwargs: Additional controls/parameters for the ExpertAgent
@@ -135,7 +143,7 @@ def test_expert_agent(kwargs=None) -> None:
             }
         }
         kwargs = {'subtask_scenarios': subtask_scenarios}
-    test_agent(ExpertAgent, kwargs=kwargs)
+    test_agent(ExpertAgent, config_name=config_name, kwargs=kwargs)
 
 
 def main() -> None:

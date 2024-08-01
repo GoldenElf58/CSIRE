@@ -44,6 +44,7 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
+    print(f"===========================\nTraining Expert Genome {subtask}\n===========================")
     if subtask_scenarios is None:
         subtask_scenarios: dict = {
             'beam-0': {
@@ -87,6 +88,7 @@ def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'succ
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
+    print(f"===============\nTraining Master\n===============")
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
     best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=1,
                            checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,

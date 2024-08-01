@@ -192,10 +192,12 @@ class Agent:
 
     def test_agent(self) -> tuple[float, int]:
         self.ale_init()
-        return self.run_frames()
+        self.run_frames()
+        return self.reward, self.index
 
 
-def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None) -> None:
+def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None,
+               config_name: str = "config-feedforward") -> None:
     """
     Tests a chosen agent or the most recent one
     :param agent_type: The type of Agent to be tested
@@ -208,12 +210,11 @@ def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None) -> None
     if choice == 'y':
         genome = load_specific_state(input("Load genome from:  "))
     else:
-        file = find_most_recent_file('successful-genome')
+        file = find_most_recent_file('successful-genome-beam')
         genome = load_specific_state(file)
         print(f"Genome loaded from {file}")
-    config: neat.config.Config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                                                    neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                                    "config-feedforward")
+    config: Config = Config(DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                            config_name)
     agent = agent_type(genome, config, -1, visualize=True, frames=60 * 30, frames_per_step=2, suppress=False,
                        show_death_message=True, info=True, **kwargs)
     agent.test_agent()
