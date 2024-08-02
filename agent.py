@@ -5,7 +5,7 @@ from ale_py import ALEInterface, ALEState, LoggerMode, roms
 from neat import Config, DefaultGenome
 
 from utils import (convert_game_name, get_action_index, load_specific_state, run_neat_model, take_action,
-                   find_most_recent_file)
+                   find_most_recent_file, normalize_list)
 
 
 class Agent:
@@ -99,30 +99,30 @@ class Agent:
                 print(f"Game state loaded from {self.load_state}")
 
     def set_inputs(self, inputs) -> None:
-        """
-        Sets the inputs and normalizes them
+        """Sets the inputs and normalizes them
+
         :param inputs: The inputs to be set to
         :return: None
         """
-        self.inputs = [inpt / 255 for inpt in inputs]
+        self.inputs = normalize_list(inputs, 1/255)
 
     def get_outputs(self) -> list[float] | None:
-        """
-        Gets the outputs of the Agent
+        """Gets the outputs of the Agent
+
         :return: The outputs of the agent
         """
         return self.outputs
 
     def run(self) -> None:
-        """
-        Runs the neat model
+        """Runs the neat model
+
         :return: None
         """
         self.outputs = run_neat_model(self.net, self.inputs)
 
     def terminate(self, death_message="Dead", punishment=-100) -> None:
-        """
-        Terminates/kills an agent playing a game (e.g. Montezuma's Revenge) and gives a punishment for that
+        """Terminates/kills an agent playing a game (e.g. Montezuma's Revenge) and gives a punishment for that
+
         :param death_message: The message to print to the console when the agent's process terminates
         :param punishment: The punishment given to the agent for being terminated before its time ends
         :return: None
@@ -165,8 +165,8 @@ class Agent:
         self.reward += self.incentive
 
     def run_frames(self) -> tuple[float, int]:
-        """
-        A function that lets an agent play a given game for a given number of steps.
+        """ A function that lets an agent play a given game for a given number of steps.
+
         :return: A tuple containing: (The total reward over all steps the agent recieved, The genome's index)
         """
         for self.i in range(self.frames):
@@ -197,6 +197,10 @@ class Agent:
         return self.reward, self.index
 
     def test_agent(self) -> tuple[float, int]:
+        """Tests the agent
+
+        :return: A tuple containing: (total reward, genome index)
+        """
         self.ale_init()
         self.run_frames()
         return self.reward, self.index
@@ -204,8 +208,8 @@ class Agent:
 
 def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None,
                config_name: str = "config-feedforward") -> None:
-    """
-    Tests a chosen agent or the most recent one
+    """Tests a chosen agent or the most recent one
+
     :param agent_type: The type of Agent to be tested
     :param kwargs: Any additional parameters for the testing
     :return: None

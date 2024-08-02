@@ -38,8 +38,8 @@ def progress_bar(percent: float, bar_length=50, bar_loaded='█', bar_unloaded='
 
 
 def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
-    """
-    Shows a loading animation and other information while other tasks are running.
+    """Shows a loading animation and other information while other tasks are running.
+
     :param stop_event: When this function terminates (e.g. when the other tasks are over)
     :param total_iterations: Total iterations into task (e.g. 50 iterations of function x)
     :param current_iteration: Number of finished iterations (e.g. 23 iterations have been completed)
@@ -172,6 +172,13 @@ def save_state(data: Any, base_filename: str = "save-state") -> None:
 
 
 def save_specific_state(data: Any, filename: str, choice: str = 'Y'):
+    """Saves data to a specific file
+
+    :param data: data to be saved
+    :param filename: file to save it to
+    :param choice: the user's choice whether save the file
+    :return: None
+    """
     if filename in os.listdir('.'):
         choice: str = input("This file already exists. Overwrite it? (Y/n)\n")
     if choice != 'Y':
@@ -332,3 +339,13 @@ def distance(x1: float, y1: float, x2: float, y2: float) -> float:
     except RuntimeWarning as e:
         print(f"RuntimeWarning caught: {e}, Coordinates: {(x1, y1), (x2, y2)}")
         return float('inf')
+
+
+def normalize_list(lst: list[float], multiplier: float) -> list[float]:
+    """Normalizes list lst by a given multiplier
+
+    :param lst: list to be normalized
+    :param multiplier: what to multiply each value by
+    :return: normalized list
+    """
+    return [item * multiplier for item in lst]

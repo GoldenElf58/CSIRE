@@ -4,7 +4,7 @@ from neat import Config, DefaultGenome, DefaultReproduction, DefaultSpeciesSet, 
 
 from agent import Agent, test_agent
 from expert_agent import ExpertAgent
-from utils import run_neat_model, divide_list, average_elements_at_indexes
+from utils import run_neat_model, divide_list, average_elements_at_indexes, normalize_list
 
 
 class MasterAgent(Agent):
@@ -26,12 +26,16 @@ class MasterAgent(Agent):
 
     def run(self) -> None:
         initial_outputs = run_neat_model(self.net, self.inputs)
-        individual_inputs: list[list[float]] = divide_list(initial_outputs, len(self.expert_agents))
+        assert len(initial_outputs) == 49
+        individual_inputs: list[list[float]] = divide_list(initial_outputs[0:47], len(self.expert_agents) + 1)
+        individual_inputs[-1].append(initial_outputs[-1])
         for i, expert_agent in enumerate(self.expert_agents):
-            inputs = [*self.inputs, *individual_inputs[i]]
+            inputs = [*self.inputs, *individual_inputs[i][0:6]]
             expert_agent.set_inputs(inputs)
             expert_agent.run_with_current_inputs()
-        individual_outputs = [expert_agent.get_outputs() for expert_agent in self.expert_agents]
+        individual_outputs = [normalize_list(expert_agent.get_outputs(), individual_inputs[i][7]) for i, expert_agent in
+                              enumerate(self.expert_agents)]
+        individual_outputs.append(normalize_list(individual_inputs[-1][0:7], individual_outputs[-1][8]))
         self.outputs = average_elements_at_indexes(individual_outputs)
 
 
