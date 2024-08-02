@@ -91,8 +91,7 @@ def main() -> None:
     The main function of the program
     :return: None
     """
-    subtasks: list[str] = ['beam']
-
+    subtasks: list[str] = list(subtask_dict.keys())
     expert_config: str = 'config-feedforward-expert'
     master_config: str = 'config-feedforward-master'
     successful_genomes: dict[str, DefaultGenome] = {}
@@ -100,7 +99,7 @@ def main() -> None:
         successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dict[subtask],
                                                    expert_config=expert_config)
     expert_agents = list(successful_genomes.values())
-    # train_master(expert_agents, expert_config=expert_config, master_config=master_config)
+    train_master(expert_agents, expert_config=expert_config, master_config=master_config)
 
 
 if __name__ == "__main__":
