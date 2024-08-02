@@ -16,6 +16,7 @@ from gym.utils.play import play
 from main import game_eval
 from expert_agent import test_expert_agent, ExpertAgent
 from neuroevolution import test_neat, run_neat
+from subtask_dictionary import subtask_dict
 from utils import (save_state, save_specific_state, load_specific_state, load_latest_state, take_action,
                    convert_game_name, find_most_recent_file)
 
@@ -74,7 +75,7 @@ def display_ram_info(action: Any, ale_env: ALEInterface, action_counts: defaultd
 
     previous_ram = ram
 
-    sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)))
+    sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)) + ' ' * 20 + str((ram[42], ram[43])))
     sys.stdout.flush()
     return action_counts, ram_changes
 
@@ -381,21 +382,7 @@ def main() -> None:
     elif choice == 'a':
         test_expert_agent()
     elif choice == 'v':
-        subtask_scenarios: dict = {
-            'beam-0': {
-                'room_set': {7, 13},
-                'subtask_goals': [[130, 252], [77, 134]]
-            }, 'beam-1': {
-                'room_set': {11, 12},
-                'subtask_goals': [[0, 235]]
-            }, 'beam-2': {
-                'room_set': {12, 13},
-                'subtask_goals': [[152, 235]]
-            }, 'beam-3': {
-                'room_set': {0, 4},
-                'subtask_goals': [[25, 252], [77, 134]]
-            }
-        }
+        subtask_scenarios: dict = subtask_dict['beam']
         base_filename = 'successful-genome'
         subtask = 'beam'
         base_filename = f'{base_filename}-{subtask}'

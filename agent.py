@@ -151,14 +151,12 @@ class Agent:
         if self.death_clock >= self.stall_length:
             self.terminate(death_message='Dead - Stalling', punishment=-100)
 
-        match lives:
-            case 0:
-                if death_scene_countdown == 0:
-                    self.last_life = True
-                if death_scene_countdown > 0 and self.last_life:
-                    self.terminate(death_message='Dead - Last Life', punishment=-15)
-            case _:
-                self.incentive += lives * .001
+        if lives == 0:
+            if death_scene_countdown == 0:
+                self.last_life = True
+            if death_scene_countdown > 0 and self.last_life:
+                self.terminate(death_message='Dead - Last Life', punishment=-20)
+        self.incentive -= (.01 - lives * .001)
 
         if not self.give_incentive:
             self.incentive = 0

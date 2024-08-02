@@ -6,6 +6,7 @@ from agent import Agent
 from expert_agent import ExpertAgent
 from master_agent import MasterAgent
 from neuroevolution import run_neat
+from subtask_dictionary import subtask_dict
 from utils import find_most_recent_file, run_in_parallel
 
 
@@ -44,23 +45,9 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
-    print(f"===========================\nTraining Expert Genome {subtask}\n===========================")
+    print(f" {'=' * (23 + len(subtask))} + \nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
     if subtask_scenarios is None:
-        subtask_scenarios: dict = {
-            'beam-0': {
-                'room_set': {7, 13},
-                'subtask_goals': [[130, 252], [77, 134]]
-            }, 'beam-1': {
-                'room_set': {11, 12},
-                'subtask_goals': [[0, 235]]
-            }, 'beam-2': {
-                'room_set': {12, 13},
-                'subtask_goals': [[152, 235]]
-            }, 'beam-3': {
-                'room_set': {0, 4},
-                'subtask_goals': [[25, 252], [77, 134]]
-            }
-        }
+        subtask_scenarios = subtask_dict['beam']
 
     if subtask is not None:
         base_filename = f'{base_filename}-{subtask}'
@@ -88,7 +75,7 @@ def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'succ
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
-    print(f"===============\nTraining Master\n===============")
+    print(f"{15 * '='}\nTraining Master\n{15 * '='}")
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
     best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=50,
                            checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,
@@ -105,30 +92,15 @@ def main() -> None:
     :return: None
     """
     subtasks: list[str] = ['beam']
-    subtask_dicts: dict[str, dict[str, dict[str, set[int] | list[list[int]]]]] = {'beam': {
-        'beam-0': {
-            'room_set': {7, 13},
-            'subtask_goals': [[130, 252], [77, 134]]
-        }, 'beam-1': {
-            'room_set': {11, 12},
-            'subtask_goals': [[0, 235]]
-        }, 'beam-2': {
-            'room_set': {12, 13},
-            'subtask_goals': [[152, 235]]
-        }, 'beam-3': {
-            'room_set': {0, 4},
-            'subtask_goals': [[25, 252], [77, 134]]
-        }
-    }}
 
     expert_config: str = 'config-feedforward-expert'
     master_config: str = 'config-feedforward-master'
     successful_genomes: dict[str, DefaultGenome] = {}
     for subtask in subtasks:
-        successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dicts[subtask],
+        successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dict[subtask],
                                                    expert_config=expert_config)
     expert_agents = list(successful_genomes.values())
-    train_master(expert_agents, expert_config=expert_config, master_config=master_config)
+    # train_master(expert_agents, expert_config=expert_config, master_config=master_config)
 
 
 if __name__ == "__main__":

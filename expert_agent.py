@@ -1,6 +1,7 @@
 from typing import Any
 
 from agent import Agent, test_agent
+from subtask_dictionary import subtask_dict
 from utils import find_all_files, distance
 
 
@@ -57,7 +58,14 @@ class ExpertAgent(Agent):
         super().add_incentive()
         self.incentive: float = 0
         room_number: int = self.ram[3]
-        distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
+        subtask_goal = self.subtask_scenarios[self.load_state]['subtask_goals'][self.goal_index - 1]
+        if len(subtask_goal) == 3:
+            if subtask_goal[2] == room_number:
+                distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
+            else:
+                distance_to_goal = 215
+        else:
+            distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
 
         if self.subtask == 'beam':
             if room_number not in self.room_set and self.i > 0:
@@ -66,11 +74,12 @@ class ExpertAgent(Agent):
             if room_number in self.room_set and self.last_action not in self.useless_action_set:
                 self.incentive += ((1 - (distance_to_goal / 215)) * 0.1) ** 2
 
-        if distance_to_goal < 5 and self.i > 0:
+        if distance_to_goal <= 5 and self.i > 0:
             if self.set_goal() == 0:
-                self.incentive += 20
+                self.incentive += 20 * (1 - self.i / self.frames)
             else:
-                self.terminate(death_message=f'Dead - Reached Goal', punishment=20)
+                self.terminate(death_message=f'Dead - Reached Final Goal',
+                               punishment=20 + 20 * (1 - self.i / self.frames))
 
         if not self.give_incentive:
             self.incentive = 0
@@ -125,21 +134,7 @@ def test_expert_agent(config_name='config-feedforward-expert', kwargs=None) -> N
     :return: None
     """
     if kwargs is None:
-        subtask_scenarios: dict = {
-            'beam-0': {
-                'room_set': {7, 13},
-                'subtask_goals': [[130, 252], [77, 134]]
-            }, 'beam-1': {
-                'room_set': {11, 12},
-                'subtask_goals': [[0, 235]]
-            }, 'beam-2': {
-                'room_set': {12, 13},
-                'subtask_goals': [[152, 235]]
-            }, 'beam-3': {
-                'room_set': {0, 4},
-                'subtask_goals': [[25, 252], [77, 134]]
-            }
-        }
+        subtask_scenarios: dict = subtask_dict['beam']
         kwargs = {'subtask_scenarios': subtask_scenarios}
     test_agent(ExpertAgent, config_name=config_name, kwargs=kwargs)
 
