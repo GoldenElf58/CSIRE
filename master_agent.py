@@ -30,12 +30,12 @@ class MasterAgent(Agent):
         individual_inputs: list[list[float]] = divide_list(initial_outputs[0:47], len(self.expert_agents) + 1)
         individual_inputs[-1].append(initial_outputs[-1])
         for i, expert_agent in enumerate(self.expert_agents):
-            inputs = [*self.inputs, *individual_inputs[i][0:6]]
+            inputs = [*self.inputs, *individual_inputs[i][:7]]  # RAM inputs and master agent inputs
             expert_agent.set_inputs(inputs)
             expert_agent.run_with_current_inputs()
         individual_outputs = [normalize_list(expert_agent.get_outputs(), individual_inputs[i][7]) for i, expert_agent in
                               enumerate(self.expert_agents)]
-        individual_outputs.append(normalize_list(individual_inputs[-1][0:7], individual_outputs[-1][8]))
+        individual_outputs.append(normalize_list(individual_inputs[-1][:8], individual_outputs[-1][8]))
         self.outputs = average_elements_at_indexes(individual_outputs)
 
 

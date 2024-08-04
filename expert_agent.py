@@ -45,6 +45,7 @@ class ExpertAgent(Agent):
         self.x_goal: int = 0
         self.y_goal: int = 0
         self.additional_inputs: int = additional_inputs
+        self.rewards: list[float] = []
         super().__init__(*args, useless_action_set=useless_action_set, load_state=self.load_state, **kwargs)
 
     def run(self) -> None:
@@ -67,12 +68,11 @@ class ExpertAgent(Agent):
         else:
             distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
 
-        if self.subtask == 'beam':
-            if room_number not in self.room_set and self.i > 0:
-                self.terminate(death_message=f'Dead - Wrong Screen ({room_number})', punishment=-200)
+        if room_number not in self.room_set and self.i > 0:
+            self.terminate(death_message=f'Dead - Wrong Screen ({room_number})', punishment=-200)
 
-            if room_number in self.room_set and self.last_action not in self.useless_action_set:
-                self.incentive += ((1 - (distance_to_goal / 215)) * 0.1) ** 2
+        if room_number in self.room_set and self.last_action not in self.useless_action_set:
+            self.incentive += ((1 - (distance_to_goal / 215)) * 0.1) ** 2
 
         if distance_to_goal <= 5 and self.i > 0:
             if self.set_goal() == 0:
@@ -86,8 +86,7 @@ class ExpertAgent(Agent):
         self.reward += self.incentive
 
     def set_goal(self):
-        """
-        Sets the x and y goal for the agent
+        """Sets the x and y goal for the agent
         :return: None
         """
         self.scenario_goals = self.subtask_scenarios[self.load_state]['subtask_goals']
@@ -108,10 +107,12 @@ class ExpertAgent(Agent):
     def test_agent(self) -> tuple[float, int]:
         self.ale_init()
         self.reward: float = 0
+        self.rewards: list[float] = []
         for self.load_state in self.load_states:
             self.end = False
             self.goal_index = 0
             self.last_life = False
+            self.death_clock = 0
             goal_result, room_result = self.set_goal(), self.set_room_set()
             if goal_result == -2 or room_result == -2:
                 raise RuntimeError(f"Goal Result was: {goal_result}, Room Result was: {room_result}")
@@ -124,18 +125,23 @@ class ExpertAgent(Agent):
                 print(f'Subtask Scenarios: {self.subtask_scenarios}')
                 print(f'Goal Index: {self.goal_index}')
                 print(f'Goal: {self.x_goal, self.y_goal}')
+            self.rewards.append(self.reward)
+            self.reward = 0
+        self.rewards.sort()
+        self.reward = sum(self.rewards) + self.rewards[0] - self.rewards[-1] / 2  # Punishes agent more for worse runs
         return self.reward, self.index
 
 
-def test_expert_agent(config_name='config-feedforward-expert', kwargs=None) -> None:
-    """
-    Tests an ExpertAgent
+def test_expert_agent(subtask='beam', config_name='config-feedforward-expert', kwargs=None) -> None:
+    """Tests an ExpertAgent
+
+    :param subtask: The subtask for the agent to be trained on
     :param kwargs: Additional controls/parameters for the ExpertAgent
     :return: None
     """
     if kwargs is None:
-        subtask_scenarios: dict = subtask_dict['beam']
-        kwargs = {'subtask_scenarios': subtask_scenarios}
+        subtask_scenarios: dict = subtask_dict[subtask]
+        kwargs = {'subtask_scenarios': subtask_scenarios, 'subtask': subtask}
     test_agent(ExpertAgent, config_name=config_name, kwargs=kwargs)
 
 

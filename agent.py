@@ -206,7 +206,7 @@ class Agent:
         return self.reward, self.index
 
 
-def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None,
+def test_agent(agent_type: Callable = Agent, subtask='beam', kwargs: dict | None = None,
                config_name: str = "config-feedforward") -> None:
     """Tests a chosen agent or the most recent one
 
@@ -220,7 +220,7 @@ def test_agent(agent_type: Callable = Agent, kwargs: dict | None = None,
     if choice == 'y':
         genome = load_specific_state(input("Load genome from:  "))
     else:
-        file = find_most_recent_file('successful-genome-beam')
+        file = find_most_recent_file(f'successful-genome-{subtask}')
         genome = load_specific_state(file)
         print(f"Genome loaded from {file}")
     config: Config = Config(DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation,

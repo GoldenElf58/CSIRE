@@ -380,7 +380,7 @@ def main() -> None:
         else:
             print("Invalid choice. Try again.")
     elif choice == 'a':
-        test_expert_agent()
+        test_expert_agent(subtask=input('Subtask:  '))
     elif choice == 'v':
         subtask_scenarios: dict = subtask_dict['beam']
         base_filename = 'successful-genome'
