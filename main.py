@@ -24,6 +24,9 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
     :param agent_type: The type of agent (e.g. ExpertAgent, MasterAgent, Agent
     :return: None
     """
+    global worst_fitness_over_time
+    global average_fitness_over_time
+    global best_fitness_over_time
     if run_func is None:
         run_func = agent_type.test_agent
     if func_params is None:
