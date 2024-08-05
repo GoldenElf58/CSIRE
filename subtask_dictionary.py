@@ -39,7 +39,8 @@ subtask_dict: dict[str, dict[str, dict[str, set[int] | list[list[int]]]]] = \
                 'subtask_goals': [[5, 235]]
             }, 'floor-2': {
                 'room_set': {22, 23},
-                'subtask_goals': [[149, 235], [100, 252, 23], [115, 252], [130, 252], [5, 235], [5, 235, 22]]
+                'subtask_goals': [[149, 235, 22], [100, 252, 23], [115, 252, 23], [130, 252, 23], [5, 235, 23],
+                                  [5, 235, 22]]
             }
         },
         'jump': {

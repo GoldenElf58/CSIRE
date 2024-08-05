@@ -71,15 +71,39 @@ class ExpertAgent(Agent):
         if room_number not in self.room_set and self.i > 0:
             self.terminate(death_message=f'Dead - Wrong Screen ({room_number})', punishment=-200)
 
-        if room_number in self.room_set and self.last_action not in self.useless_action_set:
-            self.incentive += ((1 - (distance_to_goal / 215)) * 0.1) ** 2
-
         if distance_to_goal <= 5 and self.i > 0:
             if self.set_goal() == 0:
                 self.incentive += 20 * (1 - self.i / self.frames)
             else:
                 self.terminate(death_message=f'Dead - Reached Final Goal',
                                punishment=20 + 20 * (1 - self.i / self.frames))
+
+        if not self.give_incentive:
+            self.incentive = 0
+        self.reward += self.incentive
+
+    def update_reward_distance(self):
+        self.incentive: float = 0
+        room_number: int = self.ram[3]
+        for i, subtask_goal in enumerate(self.subtask_scenarios[self.load_state]['subtask_goals']):
+            if i < self.goal_index - 1:
+                continue
+            elif i == self.goal_index - 1:
+                room_number: int = self.ram[3]
+            elif len(subtask_goal) == 3:
+                room_number: int = subtask_goal[2]
+
+            if len(subtask_goal) == 3:
+                if subtask_goal[2] == room_number:
+                    distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
+                else:
+                    distance_to_goal = 215
+            else:
+                distance_to_goal = distance(self.x, self.y, self.x_goal, self.y_goal)
+            if room_number not in self.room_set:
+                distance_to_goal = 215
+
+            self.incentive -= distance_to_goal
 
         if not self.give_incentive:
             self.incentive = 0
@@ -93,6 +117,7 @@ class ExpertAgent(Agent):
         if self.load_state not in self.subtask_scenarios.keys():
             return -1  # load state not documented
         if self.goal_index > len(self.scenario_goals) - 1:
+            self.goal_index += 1
             return -2  # goal index too high
         self.x_goal = self.scenario_goals[self.goal_index][0]
         self.y_goal = self.scenario_goals[self.goal_index][1]
@@ -120,15 +145,19 @@ class ExpertAgent(Agent):
                 continue
             self.load_new_state()
             self.run_frames()
+            self.update_reward_distance()
             if self.info:
                 print(f'Load State: {self.load_state}')
                 print(f'Subtask Scenarios: {self.subtask_scenarios}')
                 print(f'Goal Index: {self.goal_index}')
                 print(f'Goal: {self.x_goal, self.y_goal}')
+                print()
             self.rewards.append(self.reward)
             self.reward = 0
         self.rewards.sort()
         self.reward = sum(self.rewards) + self.rewards[0] - self.rewards[-1] / 2  # Punishes agent more for worse runs
+        if self.info:
+            print(f'\nFinal Reward: {self.reward}')
         return self.reward, self.index
 
 

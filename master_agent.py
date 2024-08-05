@@ -35,7 +35,7 @@ class MasterAgent(Agent):
             expert_agent.run_with_current_inputs()
         individual_outputs = [normalize_list(expert_agent.get_outputs(), individual_inputs[i][7]) for i, expert_agent in
                               enumerate(self.expert_agents)]
-        individual_outputs.append(normalize_list(individual_inputs[-1][:8], individual_outputs[-1][8]))
+        individual_outputs.append(normalize_list(individual_inputs[-1][:8], individual_outputs[-1][7]))
         self.outputs = average_elements_at_indexes(individual_outputs)
 
 
