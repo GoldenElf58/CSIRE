@@ -32,8 +32,8 @@ global previous_ram
 def display_ram_info(action: Any, ale_env: ALEInterface, action_counts: defaultdict[Any, int],
                      ram_changes: defaultdict[Any, np.ndarray[Any, np.dtype]]
                      ) -> tuple[defaultdict[Any, int], defaultdict[Any, np.ndarray[Any, np.dtype]]]:
-    """
-    Displays the RAM and info about the amount of times different bytes change
+    """Displays the RAM and info about the amount of times different bytes change
+
     :param action: The action the user just took
     :param ale_env: The ale_env the user is playing in
     :param action_counts: The counts of how many each type of action the user has taken
@@ -366,7 +366,7 @@ def main() -> None:
     :return: None
     """
     choice = input(
-        "Test NEAT (N/n), play game (G/g), or test best agent (A/a), or visualize a generation(V/v)?  ").lower()
+        "Test NEAT (N/n), play game (G/g), or test best agent (A/a), or run a generation(R/r)?  ").lower()
     t0 = time.perf_counter()
     if choice == 'n':
         test_neat()
@@ -381,7 +381,7 @@ def main() -> None:
             print("Invalid choice. Try again.")
     elif choice == 'a':
         test_expert_agent(subtask=input('Subtask:  '))
-    elif choice == 'v':
+    elif choice == 'r':
         subtask = input("Subtask:  ")
         subtask_scenarios: dict = subtask_dict[subtask]
         base_filename = 'successful-genome'

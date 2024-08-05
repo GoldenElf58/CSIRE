@@ -53,6 +53,7 @@ class Agent:
         self.y: int = 0
         self.last_x: int = 0
         self.last_y: int = 0
+        self.prev_y = 0
         self.i: int | None = None
         self.ram: None or list[int] = None
         self.inputs: None or list[int] = None
@@ -144,10 +145,12 @@ class Agent:
         self.x = float(self.ram[42])
         self.y = float(self.ram[43])
 
-        if self.last_action in self.useless_action_set or (self.x, self.y) == (self.last_x, self.last_y):
+        if self.last_action in self.useless_action_set or (self.x == self.last_x and abs(self.y - self.last_y) < 25):
             self.death_clock += 1
         else:
             self.death_clock = 0
+        if abs(self.y - self.prev_y) > 25:
+            self.prev_y = self.y
         if self.death_clock >= self.stall_length:
             self.terminate(death_message='Dead - Stalling', punishment=-100)
 
@@ -233,9 +236,11 @@ def test_agent(agent_type: Callable = Agent, subtask='beam', kwargs: dict | None
         file = find_most_recent_file(f'successful-genome-{subtask}')
         genome = load_specific_state(file)
         print(f"Genome loaded from {file}")
+    visualize = input("Visualize (y/n?  ").lower()
+    visualize = visualize == 'y'
     config: Config = Config(DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             config_name)
-    agent = agent_type(genome, config, -1, visualize=True, frames=60 * 30, frames_per_step=2, suppress=False,
+    agent = agent_type(genome, config, -1, visualize=visualize, frames=60 * 30, frames_per_step=2, suppress=False,
                        show_death_message=True, info=True, **kwargs)
     agent.test_agent()
 
