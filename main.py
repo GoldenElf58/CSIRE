@@ -9,6 +9,10 @@ from neuroevolution import run_neat
 from subtask_dictionary import subtask_dict
 from utils import find_most_recent_file, run_in_parallel
 
+worst_fitness_over_time = []
+average_fitness_over_time = []
+best_fitness_over_time = []
+
 
 def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent, run_func=None) -> None:
     """
@@ -30,8 +34,21 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
         agent: Agent = agent_type(genome, config, i, **kwargs)
         args.append([agent])
     results: list[tuple[float, int]] = run_in_parallel(run_func, args=args, iterations=len(args))
+    worst = float('inf')
+    best = float('-inf')
+    average = 0
     for result in results:
-        genomes[result[1]][1].fitness = float(result[0])
+        current_fitness = float(result[0])
+        genomes[result[1]][1].fitness = current_fitness
+        if current_fitness > best:
+            best = current_fitness
+        if current_fitness < worst:
+            worst = current_fitness
+        average += current_fitness
+    average /= len(results)
+    worst_fitness_over_time.append(worst)
+    best_fitness_over_time.append(best)
+    average_fitness_over_time.append(average)
 
 
 def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_filename: str = 'successful-genome',
@@ -96,8 +113,15 @@ def main() -> None:
     master_config: str = 'config-feedforward-master'
     successful_genomes: dict[str, DefaultGenome] = {}
     for subtask in subtasks:
+        worst_fitness_over_time.append(subtask)
+        best_fitness_over_time.append(subtask)
+        average_fitness_over_time.append(subtask)
         successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dict[subtask],
                                                    expert_config=expert_config)
+        print(f'Best: {best_fitness_over_time}\nAverage: {average_fitness_over_time}\nWorst: {worst_fitness_over_time}')
+    worst_fitness_over_time.append('master')
+    best_fitness_over_time.append('master')
+    average_fitness_over_time.append('master')
     expert_agents = list(successful_genomes.values())
     train_master(expert_agents, expert_config=expert_config, master_config=master_config)
 
