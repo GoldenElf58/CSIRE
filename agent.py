@@ -151,11 +151,12 @@ class Agent:
         if self.death_clock >= self.stall_length:
             self.terminate(death_message='Dead - Stalling', punishment=-100)
 
-        if lives == 0:
-            if death_scene_countdown == 0:
+        if death_scene_countdown == 1:
+            self.incentive -= 5
+            if lives == 0:
                 self.last_life = True
-            if death_scene_countdown > 0 and self.last_life:
-                self.terminate(death_message='Dead - Last Life', punishment=-20)
+        elif death_scene_countdown > 1 and self.last_life and lives == 0:
+            self.terminate(death_message='Dead - Last Life', punishment=-20)
         self.incentive -= (.01 - lives * .001)
 
         if not self.give_incentive:
@@ -163,6 +164,9 @@ class Agent:
         self.last_x = self.x
         self.last_y = self.y
         self.reward += self.incentive
+
+    def add_game_reward(self, game_reward):
+        self.reward += game_reward
 
     def run_frames(self) -> tuple[float, int]:
         """ A function that lets an agent play a given game for a given number of steps.
@@ -181,13 +185,12 @@ class Agent:
                 self.run()
                 action_index: int = get_action_index(self.outputs)
                 game_reward: float = take_action(action_index, self.ale)
-                self.game_reward += game_reward
-                self.reward += game_reward
                 self.last_action = action_index
             else:
                 game_reward: float = take_action(self.last_action, self.ale)
-                self.game_reward += game_reward
-                self.reward += game_reward
+
+            self.game_reward += game_reward
+            self.add_game_reward(game_reward)
 
         return self.reward, self.index
 
@@ -198,8 +201,8 @@ class Agent:
         """
         if self.info:
             print(f'Index: {self.index}')
-            print(f'Subtask: {self.load_state}')
-            print(f'Total Reward: {self.reward}')
+            print(f'Load State: {self.load_state}')
+            print(f'Total Reward: {self.reward:.2f}')
             print(f'Total Game Reward: {self.game_reward}')
 
     def test_agent(self) -> tuple[float, int]:

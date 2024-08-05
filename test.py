@@ -382,9 +382,9 @@ def main() -> None:
     elif choice == 'a':
         test_expert_agent(subtask=input('Subtask:  '))
     elif choice == 'v':
-        subtask_scenarios: dict = subtask_dict['beam']
+        subtask = input("Subtask:  ")
+        subtask_scenarios: dict = subtask_dict[subtask]
         base_filename = 'successful-genome'
-        subtask = 'beam'
         base_filename = f'{base_filename}-{subtask}'
         checkpoint_name = f'neat-checkpoint-{subtask}'
         expert_config: str = 'config-feedforward-expert'
