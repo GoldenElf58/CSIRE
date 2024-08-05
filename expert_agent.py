@@ -129,35 +129,44 @@ class ExpertAgent(Agent):
             return -1  # load state not documented
         self.room_set = self.subtask_scenarios[self.load_state]['room_set']
 
+    def run_frames(self) -> tuple[float, int]:
+        self.end = False
+        self.last_life = False
+        self.death_clock = 0
+        self.load_new_state()
+        super().run_frames()
+        self.update_reward_distance()
+        return self.reward, self.index
+
+    def display_info(self):
+        super().display_info()
+        if self.info:
+            print(f'Load State: {self.load_state}')
+            print(f'Subtask Scenarios: {self.subtask_scenarios}')
+            print(f'Goal Index: {self.goal_index}')
+            print(f'Goal: {self.x_goal, self.y_goal}')
+            print()
+
     def test_agent(self) -> tuple[float, int]:
         self.ale_init()
         self.reward: float = 0
         self.rewards: list[float] = []
         for self.load_state in self.load_states:
-            self.end = False
             self.goal_index = 0
-            self.last_life = False
-            self.death_clock = 0
             goal_result, room_result = self.set_goal(), self.set_room_set()
             if goal_result == -2 or room_result == -2:
                 raise RuntimeError(f"Goal Result was: {goal_result}, Room Result was: {room_result}")
             elif goal_result == -1 or room_result == -1:
                 continue
-            self.load_new_state()
             self.run_frames()
-            self.update_reward_distance()
-            if self.info:
-                print(f'Load State: {self.load_state}')
-                print(f'Subtask Scenarios: {self.subtask_scenarios}')
-                print(f'Goal Index: {self.goal_index}')
-                print(f'Goal: {self.x_goal, self.y_goal}')
-                print()
+            self.display_info()
             self.rewards.append(self.reward)
             self.reward = 0
         self.rewards.sort()
         self.reward = sum(self.rewards) + self.rewards[0] - self.rewards[-1] / 2  # Punishes agent more for worse runs
         if self.info:
-            print(f'\nFinal Reward: {self.reward}')
+            print(f'Rewards: {self.rewards}')
+            print(f'\n\nFinal Reward: {self.reward}')
         return self.reward, self.index
 
 

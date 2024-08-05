@@ -189,12 +189,18 @@ class Agent:
                 self.game_reward += game_reward
                 self.reward += game_reward
 
+        return self.reward, self.index
+
+    def display_info(self):
+        """Displays information about the testing if self.info is True
+
+        :return: None
+        """
         if self.info:
             print(f'Index: {self.index}')
             print(f'Subtask: {self.load_state}')
             print(f'Total Reward: {self.reward}')
             print(f'Total Game Reward: {self.game_reward}')
-        return self.reward, self.index
 
     def test_agent(self) -> tuple[float, int]:
         """Tests the agent
@@ -203,6 +209,7 @@ class Agent:
         """
         self.ale_init()
         self.run_frames()
+        self.display_info()
         return self.reward, self.index
 
 
