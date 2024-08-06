@@ -107,7 +107,7 @@ def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs:
     # Stop the loading sign
     stop_event.set()
     loader_thread.join()
-    clear()
+    print('\n')
     return results
 
 
