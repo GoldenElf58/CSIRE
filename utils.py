@@ -111,6 +111,21 @@ def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs:
     return results
 
 
+def find_highest_file_number(base_filename='neat-checkpoint'):
+    files = os.listdir('.')
+    latest_file_num = None
+    for file in files:
+        if file.startswith(base_filename + '-'):
+            try:
+                current_file_num = int(file.split('-')[-1])
+                if latest_file_num is None or current_file_num > latest_file_num:
+                    latest_file_num = current_file_num
+            except ValueError:
+                pass
+
+    return latest_file_num
+
+
 def find_most_recent_file(base_filename='neat_checkpoint'):
     """
     Returns the name of the most recent file of a specific base filename (based on the number at the end of the file
@@ -118,18 +133,8 @@ def find_most_recent_file(base_filename='neat_checkpoint'):
     :param base_filename: Base filename (e.g. 'neat-checkpoint' or 'save-state')
     :return: Name of the most recent checkpoint file
     """
-    files = os.listdir('.')
-    latest_file_num = None
-    latest_file_name = None
-    for file in files:
-        if file.startswith(base_filename + '-'):
-            try:
-                current_file_num = int(file.split('-')[-1])
-                if latest_file_num is None or current_file_num > latest_file_num:
-                    latest_file_num = current_file_num
-                    latest_file_name = file
-            except ValueError:
-                pass
+    latest_file_num = find_highest_file_number(base_filename)
+    latest_file_name = f'{base_filename}-{latest_file_num}'
 
     return latest_file_name
 

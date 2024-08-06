@@ -8,7 +8,7 @@ from logs import logger, setup_logging
 from master_agent import MasterAgent
 from neuroevolution import run_neat
 from subtask_dictionary import subtask_dict
-from utils import find_most_recent_file, run_in_parallel
+from utils import find_most_recent_file, run_in_parallel, find_highest_file_number, load_latest_state
 
 worst_fitnesses: list[Any | float] = []
 average_fitnesses: list[Any | float] = []
@@ -56,14 +56,15 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
 
 
 def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_filename: str = 'successful-genome',
-                 expert_config: str = 'config-feedforward-expert', checkpoint_name=None):
-    """
-    Trains an expert for a given subtask
+                 expert_config: str = 'config-feedforward-expert', checkpoint_name=None, generations=1_000):
+    """Trains an expert for a given subtask
+
     :param subtask: The subtask to be trained on
     :param subtask_scenarios: The different scenarios a subtask has
     :param base_filename: The base filename before the subtask name
     :param expert_config: The name of the configuration file for the expert agents
     :param checkpoint_name: Name of the checkpoint file
+    :param generations: Number of generations to train agent
     :return:
     """
     logger.info(f" {'=' * (23 + len(subtask))}\nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
@@ -77,7 +78,7 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
     best_genome = run_neat(expert_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=50,
                            checkpoint=find_most_recent_file(f'neat-checkpoint-{subtask}'), insert_genomes=False,
-                           genomes=successful_genomes, generations=1_000, base_filename=base_filename,
+                           genomes=successful_genomes, generations=generations, base_filename=base_filename,
                            base_checkpoint_filename=checkpoint_name,
                            extra_inputs=[{'visualize': False, 'subtask': subtask, 'info': False,
                                           'subtask_scenarios': subtask_scenarios}, ExpertAgent])
@@ -117,11 +118,23 @@ def main() -> None:
     master_config: str = 'config-feedforward-master'
     successful_genomes: dict[str, DefaultGenome] = {}
     for subtask in subtasks:
+        generations = 1_000
+        highest_file_number = find_highest_file_number(f'neat-checkpoint-{subtask}')
+        if highest_file_number is None:
+            pass
+        elif highest_file_number >= generations:
+            successful_genomes[subtask] = load_latest_state(base_filename=f'successful-genome-{subtask}')
+            logger.warning(f"Skipping {subtask} because {highest_file_number} is the most recent checkpoint number")
+            continue
+        else:
+            generations = generations - highest_file_number
+            logger.warning(f"Running {subtask} for {generations} generations")
+
         worst_fitnesses.append(subtask)
         best_fitnesses.append(subtask)
         average_fitnesses.append(subtask)
         successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dict[subtask],
-                                                   expert_config=expert_config)
+                                                   expert_config=expert_config, generations=generations)
         logger.debug(f'Best: {best_fitnesses}\nAverage: {average_fitnesses}\nWorst: {worst_fitnesses}')
     worst_fitnesses.append('master')
     best_fitnesses.append('master')
