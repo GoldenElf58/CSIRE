@@ -73,10 +73,10 @@ class Agent:
         Loads the ALEInterface for the Agent
         :return: An ALEInterface with a game loaded
         """
-        self.ale: ALEInterface = ALEInterface()
-
         if self.suppress:
-            self.ale.setLoggerMode(LoggerMode.Error)
+            ALEInterface.setLoggerMode(LoggerMode.Error)
+
+        self.ale: ALEInterface = ALEInterface()
 
         self.ale.setFloat('repeat_action_probability', self.repeat_action_probability)
         self.ale.setBool('display_screen', self.visualize)

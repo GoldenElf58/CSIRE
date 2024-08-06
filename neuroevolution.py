@@ -200,7 +200,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
             if choice.lower() == 'n':
                 save_state(winner, base_filename)
             elif choice != 'Y':
-                logger.warn("Invalid choice. Try again.")
+                logger.warning("Invalid choice. Try again.")
 
     if display_best_output:
         # Show output of the most fit genome against training data.
@@ -212,7 +212,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
                     output = winner_net.activate(xi)
                     logger.info(f"input {xi}, expected output {xo}, got {[round(x, 2) for x in output]}")
             except (RuntimeError, ValueError) as e:
-                logger.warn(f'Could not display input output pairs.\nError type: {type(e)}.\nError: {e}')
+                logger.warning(f'Could not display input output pairs.\nError type: {type(e)}.\nError: {e}')
                 traceback.print_exc()
         else:
             try:
@@ -222,7 +222,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
                 agent: ExpertAgent = ExpertAgent(winner, config, -1, **kwargs)
                 agent.test_agent()
             except Exception as e:
-                logger.warn(f"Could not visualize successful genome.\nError type: {type(e)}.\nError: {e}")
+                logger.warning(f"Could not visualize successful genome.\nError type: {type(e)}.\nError: {e}")
                 traceback.print_exc()
 
     return winner

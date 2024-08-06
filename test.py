@@ -115,8 +115,8 @@ def play_game(game='MontezumaRevenge-v4') -> None:
     action_counts: defaultdict[Any, int] = defaultdict(int)  # Track the number of times each action was pressed
 
     def callback(obs_t, obs_tp1, action, rew, terminated, truncated, info) -> None:
-        """
-        Prints the RAM bytes in the console every frame, each byte formatted with different colors
+        """Prints the RAM bytes in the console every frame, each byte formatted with different colors
+
         :param obs_t: Not used.
         :param obs_tp1: Not used.
         :param action: Action taken by the user.
