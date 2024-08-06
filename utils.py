@@ -59,7 +59,7 @@ def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
             f"\r{next(loader)} {bar} - {percent_complete * 100:.1f}%, ETA: {eta // 60:.0f}m {eta % 60:.0f}s {best:.3f}",
             end='')
         time.sleep(0.5)  # Adjust the delay for visual effect
-    print('\r ', end='')
+    print('\r' + ' ' * 100, end='')
 
 
 def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs: None or list[dict] = None,
