@@ -348,3 +348,18 @@ def normalize_list(lst: list[float], multiplier: float) -> list[float]:
     return [item * multiplier for item in lst]
 
 
+def rounded(lst: list[Any | float], place: int = 2) -> list[Any | float]:
+    """ Rounds each floating number in a list
+
+    :param lst: List to be rounded
+    :param place: Place to round to
+    :return: The rounded list
+    """
+    new: list[Any | float] = []
+    for x in lst:
+        if isinstance(x, (int, float)):
+            new.append(round(x, place))
+        else:
+            new.append(x)
+    return new
+

@@ -1,4 +1,4 @@
-from typing import Type
+from typing import Any, Type
 
 from neat import DefaultGenome
 
@@ -10,9 +10,9 @@ from neuroevolution import run_neat
 from subtask_dictionary import subtask_dict
 from utils import find_most_recent_file, run_in_parallel
 
-worst_fitness_over_time = []
-average_fitness_over_time = []
-best_fitness_over_time = []
+worst_fitnesses: list[Any | float] = []
+average_fitnesses: list[Any | float] = []
+best_fitnesses: list[Any | float] = []
 
 
 def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent, run_func=None) -> None:
@@ -25,9 +25,9 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
     :param agent_type: The type of agent (e.g. ExpertAgent, MasterAgent, Agent
     :return: None
     """
-    global worst_fitness_over_time
-    global average_fitness_over_time
-    global best_fitness_over_time
+    global worst_fitnesses
+    global average_fitnesses
+    global best_fitnesses
     if run_func is None:
         run_func = agent_type.test_agent
     if func_params is None:
@@ -50,9 +50,9 @@ def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent
             worst = current_fitness
         average += current_fitness
     average /= len(results)
-    worst_fitness_over_time.append(worst)
-    best_fitness_over_time.append(best)
-    average_fitness_over_time.append(average)
+    worst_fitnesses.append(round(worst, 2))
+    best_fitnesses.append(round(best, 2))
+    average_fitnesses.append(round(average, 2))
 
 
 def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_filename: str = 'successful-genome',
@@ -66,7 +66,7 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
-    logger.info(f" {'=' * (23 + len(subtask))} + \nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
+    logger.info(f" {'=' * (23 + len(subtask))}\nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
     if subtask_scenarios is None:
         subtask_scenarios = subtask_dict['beam']
 
@@ -117,17 +117,18 @@ def main() -> None:
     master_config: str = 'config-feedforward-master'
     successful_genomes: dict[str, DefaultGenome] = {}
     for subtask in subtasks:
-        worst_fitness_over_time.append(subtask)
-        best_fitness_over_time.append(subtask)
-        average_fitness_over_time.append(subtask)
+        worst_fitnesses.append(subtask)
+        best_fitnesses.append(subtask)
+        average_fitnesses.append(subtask)
         successful_genomes[subtask] = train_expert(subtask, subtask_scenarios=subtask_dict[subtask],
                                                    expert_config=expert_config)
-        print(f'Best: {best_fitness_over_time}\nAverage: {average_fitness_over_time}\nWorst: {worst_fitness_over_time}')
-    worst_fitness_over_time.append('master')
-    best_fitness_over_time.append('master')
-    average_fitness_over_time.append('master')
+        logger.debug(f'Best: {best_fitnesses}\nAverage: {average_fitnesses}\nWorst: {worst_fitnesses}')
+    worst_fitnesses.append('master')
+    best_fitnesses.append('master')
+    average_fitnesses.append('master')
     expert_agents = list(successful_genomes.values())
     train_master(expert_agents, expert_config=expert_config, master_config=master_config)
+    logger.debug(f'Best: {best_fitnesses}\nAverage: {average_fitnesses}\nWorst: {worst_fitnesses}')
 
 
 if __name__ == "__main__":
