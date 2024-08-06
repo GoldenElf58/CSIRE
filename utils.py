@@ -59,6 +59,7 @@ def load(stop_event, total_iterations, current_iteration, results, t0) -> None:
             f"\r{next(loader)} {bar} - {percent_complete * 100:.1f}%, ETA: {eta // 60:.0f}m {eta % 60:.0f}s {best:.3f}",
             end='')
         time.sleep(0.5)  # Adjust the delay for visual effect
+    print('\r')
 
 
 def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs: None or list[dict] = None,
@@ -72,6 +73,7 @@ def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs:
     :param iterations: The number of times the function needs to be run
     :return: A list of the results of each individual run of the function
     """
+    print('\n\n\n')
     results = []
     stop_event = threading.Event()
     current_iteration = [0]
@@ -107,7 +109,6 @@ def run_in_parallel(function: Callable, args: None or list[list] = None, kwargs:
     # Stop the loading sign
     stop_event.set()
     loader_thread.join()
-    print('\n\n\n')
     return results
 
 

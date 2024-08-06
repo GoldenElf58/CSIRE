@@ -175,6 +175,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
     p.add_reporter(TimedReporter(detail, interval=report_interval))
     p.add_reporter(StatisticsReporter())
     if checkpoints:
+        logger.warning("Checkpoints are off")
         p.add_reporter(Checkpointer(checkpoint_interval, filename_prefix=f'{base_checkpoint_filename}-'))
 
     def eval_func_compressed(eval_genomes, eval_config):

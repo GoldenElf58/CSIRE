@@ -46,7 +46,8 @@ def setup_logging():
             }
         },
         "loggers": {
-            "root": {"level": "TRACE", "handlers": ["stdout", "file"]}
+            "root": {"level": "TRACE", "handlers": ["stdout", "file"]},
+            "ale_py.roms": {"level": "INFO"}
         }
     }
     logging.config.dictConfig(logging_config)
