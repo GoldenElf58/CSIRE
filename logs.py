@@ -19,7 +19,7 @@ def setup_logging():
         "filters": {},
         "formatters": {
             "informative": {
-                "format": '%(asctime)s - %(levelname)s - %(message)s - Line: %(lineno)d',
+                "format": '%(asctime)s - %(levelname)s - %(message)s - Line: %(lineno)d - File: %(filename)s',
                 "datefmt": "%m/%d/%Y %I:%M:%S %p"
             },
             "simple": {

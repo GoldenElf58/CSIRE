@@ -45,8 +45,8 @@ class TimedReporter(StdOutReporter):
 
 
 def XOR_eval(genomes, config, input_output_pairs=None):
-    """
-    An example XOR evaluation function that can be used for evaluating different genomes
+    """An example XOR evaluation function that can be used for evaluating different genomes
+
     :param genomes: The genomes to be evaluated
     :param config: The configuration of the genomes
     :param input_output_pairs: The pairs of inputs and correct outputs

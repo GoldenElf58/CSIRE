@@ -67,7 +67,7 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     :param generations: Number of generations to train agent
     :return:
     """
-    logger.info(f" {'=' * (23 + len(subtask))}\nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
+    logger.info(f"\n{'=' * (23 + len(subtask))}\nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
     if subtask_scenarios is None:
         subtask_scenarios = subtask_dict['beam']
 
@@ -97,7 +97,7 @@ def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'succ
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
-    logger.info(f"{15 * '='}\nTraining Master\n{15 * '='}")
+    logger.info(f"\n{15 * '='}\nTraining Master\n{15 * '='}")
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
     best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=50,
                            checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,
@@ -128,7 +128,8 @@ def main() -> None:
             continue
         else:
             generations = generations - highest_file_number
-            logger.warning(f"Running {subtask} for {generations} generations")
+            logger.warning(f"Running {subtask} for {generations} generations because " +
+                           f"{highest_file_number} is the most recent checkpoint number")
 
         worst_fitnesses.append(subtask)
         best_fitnesses.append(subtask)
