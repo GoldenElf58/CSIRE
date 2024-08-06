@@ -15,6 +15,7 @@ from gym.utils.play import play
 
 from main import game_eval
 from expert_agent import test_expert_agent, ExpertAgent
+from logs import logger, setup_logging
 from neuroevolution import test_neat, run_neat
 from subtask_dictionary import subtask_dict
 from utils import (save_state, save_specific_state, load_specific_state, load_latest_state, take_action,
@@ -162,7 +163,7 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
         env_data: ALEState = load_specific_state(load_state)
         ale.restoreState(env_data)
         if not suppress:
-            print(f"Game state loaded from {load_state}")
+            logger.info(f"Game state loaded from {load_state}")
         return ale
 
     return ale
@@ -213,11 +214,11 @@ def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
             if event.key == pygame.K_s:  # Save state
                 env_data: ALEState = ale.cloneState()
                 save_state(env_data)
-                print("Game state saved.")
+                logger.info("Game state saved.")
             elif event.key in {pygame.K_l, pygame.K_w}:  # Load latest state
                 env_data: ALEState = load_latest_state()
                 ale.restoreState(env_data)
-                print("Game state loaded.")
+                logger.info("Game state loaded.")
             elif event.key == pygame.K_d:  # Load specific state
                 try:
                     choice: str = input("Load with custom filename (y/n)?  ").lower()
@@ -227,17 +228,17 @@ def human_input(ale: ALEInterface, fps=60) -> tuple[int, ALEInterface]:
                         filename: str = 'save-state-' + input("Save State #:  ")
                     env_data: ALEState = load_specific_state(filename)
                     ale.restoreState(env_data)
-                    print(f"Game state loaded from {filename}")
+                    logger.info(f"Game state loaded from {filename}")
                 except (ValueError, TypeError) as e:
-                    print(f"Unable to load state. Error: {e}")
+                    logger.info(f"Unable to load state. Error: {e}")
             elif event.key == pygame.K_a:  # Save specific state
                 try:
                     env_data: ALEState = ale.cloneState()
                     filename: str = input("Save to file:  ")
                     save_specific_state(env_data, filename)
-                    print(f"Game state saved to {filename}")
+                    logger.info(f"Game state saved to {filename}")
                 except (ValueError, TypeError) as e:
-                    print(f"Unable to save state. Error: {e}")
+                    logger.info(f"Unable to save state. Error: {e}")
 
         pygame.display.update()
         clock.tick(fps)
@@ -262,7 +263,7 @@ def terminate(incentive, show_death_message=False, death_message="Dead", punishm
     :return: A tuple containing the 'end' boolean, which terminates the agent's process and the new incentive
     """
     if show_death_message:
-        print(f'\n{death_message}')
+        logger.info(f'\n{death_message}')
     incentive -= punishment
     end: bool = True
     return end, incentive
@@ -315,8 +316,8 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
 
 def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
                visualize=False, show_death_message=False, load_state=None) -> float:
-    """
-    Runs a given game for a specified number of frames based on user input
+    """Runs a given game for a specified number of frames based on user input
+
     :param frames: Number of frames/steps to run the game for
     :param info: Whether to print the total reward over time to the console
     :param frames_per_step: The number of frames the user's chosen action is applied to before it gets to decide again
@@ -356,7 +357,7 @@ def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRev
         action_counts, ram_changes = display_ram_info(last_action, ale, action_counts, ram_changes)
 
     if info:
-        print(f'Total Reward: {reward}')
+        logger.info(f'Total Reward: {reward}')
     return reward
 
 
@@ -365,6 +366,7 @@ def main() -> None:
     The main function of the program
     :return: None
     """
+    setup_logging()
     choice = input(
         "Test NEAT (N/n), play game (G/g), or test best agent (A/a), or run a generation(R/r)?  ").lower()
     t0 = time.perf_counter()
@@ -378,7 +380,7 @@ def main() -> None:
         elif choice == 'a':
             run_frames(frames=60 ** 3, info=True, frames_per_step=1, visualize=True, show_death_message=True)
         else:
-            print("Invalid choice. Try again.")
+            logger.warning("Invalid choice. Try again.")
     elif choice == 'a':
         test_expert_agent(subtask=input('Subtask:  '))
     elif choice == 'r':
@@ -395,12 +397,12 @@ def main() -> None:
                  extra_inputs=[{'visualize': False, 'subtask': subtask, 'info': False,
                                 'subtask_scenarios': subtask_scenarios}, ExpertAgent])
     else:
-        print("Invalid choice. Try again.")
+        logger.warning("Invalid choice. Try again.")
     t1 = time.perf_counter()
     te = t1 - t0
-    print(f'Time: {te:.2f}s')
+    logger.info(f'Time: {te:.2f}s')
 
 
 if __name__ == "__main__":
-    print("Program Started")
+    logger.info("Program Started")
     main()

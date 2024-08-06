@@ -4,6 +4,7 @@ from neat import DefaultGenome
 
 from agent import Agent
 from expert_agent import ExpertAgent
+from logs import logger, setup_logging
 from master_agent import MasterAgent
 from neuroevolution import run_neat
 from subtask_dictionary import subtask_dict
@@ -65,7 +66,7 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
-    print(f" {'=' * (23 + len(subtask))} + \nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
+    logger.info(f" {'=' * (23 + len(subtask))} + \nTraining Expert Genome {subtask}\n{'=' * (23 + len(subtask))}")
     if subtask_scenarios is None:
         subtask_scenarios = subtask_dict['beam']
 
@@ -95,7 +96,7 @@ def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'succ
     :param checkpoint_name: Name of the checkpoint file
     :return:
     """
-    print(f"{15 * '='}\nTraining Master\n{15 * '='}")
+    logger.info(f"{15 * '='}\nTraining Master\n{15 * '='}")
     successful_genomes = []  # list(set(load_specific_state(file) for file in find_all_files(base_filename)))
     best_genome = run_neat(master_config, eval_func=game_eval, checkpoints=True, checkpoint_interval=50,
                            checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,
@@ -130,5 +131,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    print('Program Started')
+    setup_logging()
+    logger.debug('========= Program Started =========')
     main()

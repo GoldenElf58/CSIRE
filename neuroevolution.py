@@ -10,6 +10,7 @@ from neat import (Config, DefaultGenome, StdOutReporter, DefaultReproduction, De
                   Checkpointer, Population, StatisticsReporter, nn)
 
 from expert_agent import ExpertAgent
+from logs import logger
 from utils import save_state
 
 
@@ -52,7 +53,7 @@ def XOR_eval(genomes, config, input_output_pairs=None):
     :return: A list of the fitnesses of the genomes
     """
     if input_output_pairs is None:
-        print("No input-output pairs given")
+        logger.warn("No input-output pairs given")
         return
     for genome_id, genome in genomes:
         net = nn.FeedForwardNetwork.create(genome, config)
@@ -78,8 +79,8 @@ def adjust_genome_node_ids(genome, start_id):
         try:
             new_key = (node_mapping[conn_key], node_mapping[conn_key[1]])
         except KeyError as e:
-            print(f"Error in connection keys: {conn_key}")
-            print(f"Node mapping: {node_mapping}")
+            logger.error(f"Error in connection keys: {conn_key}")
+            logger.error(f"Node mapping: {node_mapping}")
             raise e
         new_connections[new_key] = conn
     genome.connections = new_connections
@@ -162,7 +163,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
     config: Config = Config(DefaultGenome, DefaultReproduction, DefaultSpeciesSet, DefaultStagnation, config_path)
 
     if checkpoint and os.path.exists(checkpoint):
-        print("NEAT Checkpoint Loaded")
+        logger.info("NEAT Checkpoint Loaded")
         p = Checkpointer.restore_checkpoint(checkpoint)
         p.config = config
     else:
@@ -185,10 +186,10 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
     winner = p.run(eval_func_compressed, generations)
 
     if display_best_genome:
-        print(f'\nBest genome:\n{winner}')
+        logger.info(f'\nBest genome:\n{winner}')
 
     if display_best_fitness:
-        print(f'\nBest Fitness: {winner.fitness:.3f}')
+        logger.info(f'\nBest Fitness: {winner.fitness:.3f}')
 
     if save_best_genome:
         save_state(winner, base_filename)
@@ -199,19 +200,19 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
             if choice.lower() == 'n':
                 save_state(winner, base_filename)
             elif choice != 'Y':
-                print("Invalid choice. Try again.")
+                logger.warn("Invalid choice. Try again.")
 
     if display_best_output:
         # Show output of the most fit genome against training data.
-        print('\nOutput:')
+        logger.info('\nOutput:')
         winner_net = nn.FeedForwardNetwork.create(winner, config)
         if eval_func == XOR_eval:
             try:
                 for [xi], [xo] in extra_inputs[0]:
                     output = winner_net.activate(xi)
-                    print(f"input {xi}, expected output {xo}, got {[round(x, 2) for x in output]}")
+                    logger.info(f"input {xi}, expected output {xo}, got {[round(x, 2) for x in output]}")
             except (RuntimeError, ValueError) as e:
-                print(f'Could not display input output pairs.\nError type: {type(e)}.\nError: {e}')
+                logger.warn(f'Could not display input output pairs.\nError type: {type(e)}.\nError: {e}')
                 traceback.print_exc()
         else:
             try:
@@ -221,7 +222,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
                 agent: ExpertAgent = ExpertAgent(winner, config, -1, **kwargs)
                 agent.test_agent()
             except Exception as e:
-                print(f"Could not visualize successful genome.\nError type: {type(e)}.\nError: {e}")
+                logger.warn(f"Could not visualize successful genome.\nError type: {type(e)}.\nError: {e}")
                 traceback.print_exc()
 
     return winner
@@ -253,5 +254,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    print("Program Started")
+    logger.info("Program Started")
     main()

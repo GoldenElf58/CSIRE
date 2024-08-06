@@ -2,6 +2,7 @@ from typing import Callable
 
 import neat
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
+from logs import logger
 from neat import Config, DefaultGenome
 
 from utils import (convert_game_name, get_action_index, load_specific_state, run_neat_model, take_action,
@@ -97,7 +98,7 @@ class Agent:
             env_data: ALEState = load_specific_state(self.load_state)
             self.ale.restoreState(env_data)
             if not self.suppress:
-                print(f"Game state loaded from {self.load_state}")
+                logger.info(f"Game state loaded from {self.load_state}")
 
     def set_inputs(self, inputs) -> None:
         """Sets the inputs and normalizes them
@@ -129,7 +130,7 @@ class Agent:
         :return: None
         """
         if self.show_death_message:
-            print(f'\n{death_message}')
+            logger.info(f'\n{death_message}')
         self.incentive += punishment
         self.end: bool = True
 
@@ -203,10 +204,10 @@ class Agent:
         :return: None
         """
         if self.info:
-            print(f'Index: {self.index}')
-            print(f'Load State: {self.load_state}')
-            print(f'Total Reward: {self.reward:.2f}')
-            print(f'Total Game Reward: {self.game_reward}')
+            logger.info(f'Index: {self.index}')
+            logger.info(f'Load State: {self.load_state}')
+            logger.info(f'Total Reward: {self.reward:.2f}')
+            logger.info(f'Total Game Reward: {self.game_reward}')
 
     def test_agent(self) -> tuple[float, int]:
         """Tests the agent
@@ -235,8 +236,8 @@ def test_agent(agent_type: Callable = Agent, subtask='beam', kwargs: dict | None
     else:
         file = find_most_recent_file(f'successful-genome-{subtask}')
         genome = load_specific_state(file)
-        print(f"Genome loaded from {file}")
-    visualize = input("Visualize (y/n?  ").lower()
+        logger.debug(f"Genome loaded from {file}")
+    visualize = input("Visualize (y/n)?  ").lower()
     visualize = visualize == 'y'
     config: Config = Config(DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             config_name)

@@ -11,6 +11,7 @@ import warnings
 
 import neat
 from ale_py import Action, ALEInterface
+from logs import logger
 
 
 def clear(lines: int = 25) -> None:
@@ -333,7 +334,7 @@ def distance(x1: float, y1: float, x2: float, y2: float) -> float:
             warnings.simplefilter("error", RuntimeWarning)
             return sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
     except RuntimeWarning as e:
-        print(f"RuntimeWarning caught: {e}, Coordinates: {(x1, y1), (x2, y2)}")
+        logger.warning(f"RuntimeWarning caught: {e}, Coordinates: {(x1, y1), (x2, y2)}")
         return float('inf')
 
 
@@ -345,3 +346,5 @@ def normalize_list(lst: list[float], multiplier: float) -> list[float]:
     :return: normalized list
     """
     return [item * multiplier for item in lst]
+
+

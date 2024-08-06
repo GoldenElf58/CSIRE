@@ -1,6 +1,7 @@
 from typing import Any
 
 from agent import Agent, test_agent
+from logs import logger
 from subtask_dictionary import subtask_dict
 from utils import find_all_files, distance
 
@@ -157,10 +158,10 @@ class ExpertAgent(Agent):
     def display_info(self):
         super().display_info()
         if self.info:
-            print(f'Actual Game Reward: {self.actual_game_reward}')
-            print(f'Subtask Scenario: {self.subtask_scenarios[self.load_state]}')
-            print(f'Goal Index: {self.goal_index}')
-            print(f'Goal: {self.x_goal, self.y_goal}')
+            logger.info(f'Actual Game Reward: {self.actual_game_reward}')
+            logger.info(f'Subtask Scenario: {self.subtask_scenarios[self.load_state]}')
+            logger.info(f'Goal Index: {self.goal_index}')
+            logger.info(f'Goal: {self.x_goal, self.y_goal}')
             print()
 
     def test_agent(self) -> tuple[float, int]:
@@ -181,8 +182,8 @@ class ExpertAgent(Agent):
         self.rewards.sort()
         self.reward = sum(self.rewards) + self.rewards[0] - self.rewards[-1] / 2  # Punishes agent more for worse runs
         if self.info:
-            print(f'\nRewards: {[round(x, 2) for x in self.rewards]}')
-            print(f'\nFinal Reward: {self.reward:.5f}\n\n')
+            logger.info(f'\nRewards: {[round(x, 2) for x in self.rewards]}')
+            logger.info(f'\nFinal Reward: {self.reward:.5f}\n\n')
         return self.reward, self.index
 
 
@@ -196,7 +197,7 @@ def test_expert_agent(subtask='beam', config_name='config-feedforward-expert', k
     if kwargs is None:
         subtask_scenarios: dict = subtask_dict[subtask]
         kwargs = {'subtask_scenarios': subtask_scenarios, 'subtask': subtask}
-    test_agent(ExpertAgent, config_name=config_name, kwargs=kwargs)
+    test_agent(ExpertAgent, subtask=subtask, config_name=config_name, kwargs=kwargs)
 
 
 def main() -> None:
