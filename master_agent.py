@@ -4,7 +4,8 @@ from neat import Config, DefaultGenome, DefaultReproduction, DefaultSpeciesSet, 
 
 from agent import Agent, test_agent
 from expert_agent import ExpertAgent
-from utils import run_neat_model, divide_list, average_elements_at_indexes, normalize_list
+from subtask_dictionary import subtask_dict
+from utils import run_neat_model, divide_list, average_elements_at_indexes, normalize_list, load_latest_state
 
 
 class MasterAgent(Agent):
@@ -40,7 +41,12 @@ class MasterAgent(Agent):
 
 
 def test_master_agent():
-    test_agent(MasterAgent)
+    expert_genomes = []
+    for subtask in subtask_dict.keys():
+        expert_genomes.append(load_latest_state(f'successful-genome-{subtask}'))
+    expert_config_name = 'config-feedforward-expert'
+    kwargs = {'expert_config_name': expert_config_name, 'expert_genomes': expert_genomes}
+    test_agent(MasterAgent, subtask='master', kwargs=kwargs, config_name='config-feedforward-master')
 
 
 def main() -> None:

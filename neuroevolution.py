@@ -137,7 +137,7 @@ def insert_genome(population, genome, start_id):
 def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, detail=True, display_best_genome=False,
              display_best_output=True, display_best_fitness=True, checkpoint=None, checkpoints=True,
              checkpoint_interval=100, generations=1_000, insert_genomes=False, genomes=None, report_interval=2,
-             save_best_genome=True, base_filename='successful-genome',
+             save_best_genome=True, base_filename='successful-genome', override_config=False,
              base_checkpoint_filename='neat-checkpoint') -> DefaultGenome:
     """Runs NEAT based on many parameters:
 
@@ -157,6 +157,7 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
     :param report_interval: Minimum seconds between generation reporting
     :param save_best_genome: DANGEROUS - Whether to save the best genome when the simulation ends - DANGEROUS
     :param base_filename: The base file name for the file the best genome will be saved in
+    :param override_config: Overrides the config file of the saved checkpoint
     :param base_checkpoint_filename: The base filename for neat checkpoints
     :return: The best genome in the final generation
     """
@@ -165,11 +166,14 @@ def run_neat(config_path, extra_inputs: list | None = None, eval_func=XOR_eval, 
     if checkpoint and os.path.exists(checkpoint):
         logger.info("NEAT Checkpoint Loaded")
         p = Checkpointer.restore_checkpoint(checkpoint)
-        p.config = config
+        if override_config:
+            logger.warning("Overriding the config file may lead to errors later on")
+            p.config = config
     else:
         p = Population(config)
 
     if insert_genomes and genomes is not None:
+        logger.warning(f"Inserting genomes is dangerous and could lead to errors. {insert_genomes = }")
         insert_genomes_into_population(p, genomes)
 
     p.add_reporter(TimedReporter(detail, interval=report_interval))

@@ -10,12 +10,16 @@ from typing import Any
 import gym
 import numpy as np
 import pygame
+import torch
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
 from gym.utils.play import play
 
-from main import game_eval
+from agent import test_agent
+from autoencoder import Autoencoder, collect_ram_state, train_autoencoder, mean_squared_error
 from expert_agent import test_expert_agent, ExpertAgent
 from logs import logger, setup_logging
+from main import game_eval
+from master_agent import test_master_agent
 from neuroevolution import test_neat, run_neat
 from subtask_dictionary import subtask_dict
 from utils import (save_state, save_specific_state, load_specific_state, load_latest_state, take_action,
@@ -28,6 +32,7 @@ YELLOW_COLOR = "\033[93m"
 GREEN_COLOR = "\033[92m"
 CYAN_COLOR = '\033[96m'
 global previous_ram
+global autoencoder
 
 
 def display_ram_info(action: Any, ale_env: ALEInterface, action_counts: defaultdict[Any, int],
@@ -76,7 +81,9 @@ def display_ram_info(action: Any, ale_env: ALEInterface, action_counts: defaultd
 
     previous_ram = ram
 
-    sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)) + ' ' * 20 + str((ram[42], ram[43])))
+    sys.stdout.write('\r' + ram_str.ljust(8 * len(ram)) + ' ' * 20 + str((ram[42], ram[43])) + ' ' +
+                     str(mean_squared_error([x / 255 for x in list(ram.reshape(1, -1)[0])],
+                                            autoencoder(torch.FloatTensor(torch.Tensor(ram)) / 255)[1].tolist())))
     sys.stdout.flush()
     return action_counts, ram_changes
 
@@ -144,10 +151,10 @@ def ale_init(game: str, suppress: bool = True, repeat_action_probability: int = 
     :param load_state: File to load a save state from
     :return: An ALEInterface with a game loaded
     """
-    ale: ALEInterface = ALEInterface()
-
     if suppress:
-        ale.setLoggerMode(LoggerMode.Error)
+        ALEInterface.setLoggerMode(LoggerMode.Error)
+
+    ale: ALEInterface = ALEInterface()
 
     ale.setFloat('repeat_action_probability', repeat_action_probability)
     ale.setBool('display_screen', visualize)
@@ -315,7 +322,7 @@ def add_incentive(ram, last_life: bool, last_action: int, death_clock: int, show
 
 
 def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRevenge', suppress=True,
-               visualize=False, show_death_message=False, load_state=None) -> float:
+               visualize=False, show_death_message=False, load_state=None) -> torch.FloatTensor:
     """Runs a given game for a specified number of frames based on user input
 
     :param frames: Number of frames/steps to run the game for
@@ -337,28 +344,36 @@ def run_frames(frames=60 * 30, info=False, frames_per_step=1, game='MontezumaRev
     death_clock: int = 0
     ram_changes: defaultdict[Any, np.ndarray[Any, np.dtype]] = defaultdict(lambda: np.zeros(128, dtype=int))
     action_counts: defaultdict[Any, int] = defaultdict(int)  # Track the number of times each action was pressed
+    ram_states = []
 
-    for i in range(frames):
-        inputs = ale.getRAM().reshape(1, -1)[0]
-        temp_tuple = add_incentive(inputs, last_life, last_action, death_clock, show_death_message, False, i)
-        incentive, last_life, end, death_clock = temp_tuple
-        reward += incentive
+    try:
+        for i in range(frames):
+            inputs = ale.getRAM().reshape(1, -1)[0]
+            temp_tuple = add_incentive(inputs, last_life, last_action, death_clock, show_death_message, False, i)
+            incentive, last_life, end, death_clock = temp_tuple
+            reward += incentive
 
-        if end:
-            break
+            if end:
+                break
 
-        if i % frames_per_step == 0:
-            action_index, ale = human_input(ale)
-            reward += take_action(action_index, ale)
-            last_action = action_index
-        else:
-            reward += take_action(last_action, ale)
+            if i % frames_per_step == 0:
+                action_index, ale = human_input(ale)
+                reward += take_action(action_index, ale)
+                last_action = action_index
+                ram_states.append(collect_ram_state(ale))
+            else:
+                reward += take_action(last_action, ale)
 
-        action_counts, ram_changes = display_ram_info(last_action, ale, action_counts, ram_changes)
+            action_counts, ram_changes = display_ram_info(last_action, ale, action_counts, ram_changes)
+    except KeyboardInterrupt as e:
+        print(e)
 
     if info:
         logger.info(f'Total Reward: {reward}')
-    return reward
+    # Normalize RAM states
+    ram_states = np.array(ram_states) / 255.0
+    ram_states = torch.FloatTensor(ram_states)
+    return ram_states
 
 
 def main() -> None:
@@ -366,6 +381,8 @@ def main() -> None:
     The main function of the program
     :return: None
     """
+    global autoencoder
+    autoencoder = load_latest_state('autoencoder')
     setup_logging()
     choice = input(
         "Test NEAT (N/n), play game (G/g), or test best agent (A/a), or run a generation(R/r)?  ").lower()
@@ -378,11 +395,21 @@ def main() -> None:
         if choice == 'g':
             play_game(game='ALE/MontezumaRevenge-ram-v5')
         elif choice == 'a':
-            run_frames(frames=60 ** 3, info=True, frames_per_step=1, visualize=True, show_death_message=True)
+            ram_states = run_frames(frames=60 ** 3, info=True, frames_per_step=1, visualize=True,
+                                    show_death_message=True)
+            print(len(ram_states))
+            data_loader = torch.utils.data.DataLoader(ram_states, batch_size=32, shuffle=True)
+
+            autoencoder = Autoencoder(input_dim=128, code_dim=32)  # For Atari 2600 RAM states
+            print("Training Starting")
+            train_autoencoder(autoencoder, data_loader, num_epochs=100)
+            save_state(autoencoder, base_filename='autoencoder')
         else:
             logger.warning("Invalid choice. Try again.")
     elif choice == 'a':
         test_expert_agent(subtask=input('Subtask:  '))
+    elif choice == 'ma':
+        test_master_agent()
     elif choice == 'r':
         subtask = input("Subtask:  ")
         subtask_scenarios: dict = subtask_dict[subtask]
@@ -396,6 +423,8 @@ def main() -> None:
                  genomes=successful_genomes, base_filename=base_filename, base_checkpoint_filename=checkpoint_name,
                  extra_inputs=[{'visualize': False, 'subtask': subtask, 'info': False,
                                 'subtask_scenarios': subtask_scenarios}, ExpertAgent])
+    elif choice == 'au':
+        test_agent(kwargs={'use_autoencoder': True, 'autoencoder': autoencoder})
     else:
         logger.warning("Invalid choice. Try again.")
     t1 = time.perf_counter()
@@ -404,5 +433,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup_logging()
     logger.info("Program Started")
     main()

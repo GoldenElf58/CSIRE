@@ -11,6 +11,8 @@ import warnings
 
 import neat
 from ale_py import Action, ALEInterface
+from matplotlib import pyplot as plt
+
 from logs import logger
 
 
@@ -189,6 +191,7 @@ def save_specific_state(data: Any, filename: str, choice: str = 'Y'):
     filepath = os.path.join('.', filename)
     with open(filepath, "wb") as file:
         pickle.dump(data, file)
+        logger.debug(f"Data saved to {filename}")
 
 
 def load_latest_state(base_filename="save-state") -> Any | None:
@@ -200,7 +203,7 @@ def load_latest_state(base_filename="save-state") -> Any | None:
 
     if latest_filename is not None:
         return load_specific_state(latest_filename)
-
+    logger.debug(f'Did not or could not load file: {latest_filename}')
     return None  # No matching files found
 
 
@@ -214,7 +217,7 @@ def load_specific_state(filename: str) -> Any | None:
         filepath = os.path.join('.', filename)
         with open(filepath, 'rb') as file:
             return pickle.load(file)
-
+    logger.debug(f'Did not or could not load file: {filename}')
     return None  # No matching files found
 
 
@@ -369,3 +372,49 @@ def rounded(lst: list[Any | float], place: int = 2) -> list[Any | float]:
             new.append(x)
     return new
 
+
+def elementwise_difference(list1: list[float], list2: list[float]) -> list[float]:
+    """
+    Calculate the element-wise difference between two lists.
+
+    Args:
+    list1 (List[float]): The first list of numbers.
+    list2 (List[float]): The second list of numbers.
+
+    Returns:
+    List[float]: A list containing the differences between corresponding elements of the two input lists.
+    """
+    if len(list1) != len(list2):
+        raise ValueError("Both lists must have the same length.")
+
+    differences = [round(a - b, 2) for a, b in zip(list1, list2)]
+    return differences
+
+
+def mean_squared_error(list1: list[float], list2: list[float]) -> float:
+    """
+    Calculate the Mean Squared Error between two lists.
+
+    Args:
+    list1 (List[float]): The first list of numbers.
+    list2 (List[float]): The second list of numbers.
+
+    Returns:
+    float: The Mean Squared Error between the two lists.
+    """
+    if len(list1) != len(list2):
+        raise ValueError("Both lists must have the same length.")
+
+    mse = round(sum((a - b) ** 2 for a, b in zip(list1, list2)) / len(list1), 3)
+    return mse
+
+
+def plot_histogram(data):
+    plt.style.use('dark_background')
+    plt.figure(figsize=(10, 6))
+    plt.hist(data, bins=20, edgecolor='black')
+    plt.title('Histogram of MSEs')
+    plt.xlabel('MSE')
+    plt.ylabel('Frequency')
+    plt.grid(True)
+    plt.show()

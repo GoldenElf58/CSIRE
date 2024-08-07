@@ -3,6 +3,7 @@ from typing import Any, Type
 from neat import DefaultGenome
 
 from agent import Agent
+from autoencoder import Autoencoder
 from expert_agent import ExpertAgent
 from logs import logger, setup_logging
 from master_agent import MasterAgent
@@ -10,14 +11,15 @@ from neuroevolution import run_neat
 from subtask_dictionary import subtask_dict
 from utils import find_most_recent_file, run_in_parallel, find_highest_file_number, load_latest_state
 
+global autoencoder
 worst_fitnesses: list[Any | float] = []
 average_fitnesses: list[Any | float] = []
 best_fitnesses: list[Any | float] = []
 
 
 def game_eval(genomes, config, func_params=None, agent_type: Type[Agent] = Agent, run_func=None) -> None:
-    """
-    The evaluation function for a set of genomes. Takes in the genomes and sets their fitness.
+    """The evaluation function for a set of genomes. Takes in the genomes and sets their fitness.
+
     :param genomes: A list of the genomes to be tested
     :param config: The configuration of the genomes
     :param func_params: The parameters to be passed to the 'run_frames' function
@@ -80,16 +82,17 @@ def train_expert(subtask: str = 'beam', subtask_scenarios: dict = None, base_fil
                            checkpoint=find_most_recent_file(f'neat-checkpoint-{subtask}'), insert_genomes=False,
                            genomes=successful_genomes, generations=generations, base_filename=base_filename,
                            base_checkpoint_filename=checkpoint_name,
-                           extra_inputs=[{'visualize': False, 'subtask': subtask, 'info': False,
-                                          'subtask_scenarios': subtask_scenarios}, ExpertAgent])
+                           extra_inputs=[
+                               {'visualize': False, 'subtask': subtask, 'info': False, 'use_autoencoder': True,
+                                'autoencoder': autoencoder, 'subtask_scenarios': subtask_scenarios}, ExpertAgent])
     return best_genome
 
 
 def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'successful-genome-master',
                  expert_config: str = 'config-feedforward-expert', checkpoint_name: str = 'neat-checkpoint-master',
                  master_config: str = 'config-feedforward-master') -> DefaultGenome:
-    """
-    Trains an expert for a given subtask
+    """Trains master agent on expert agents
+
     :param expert_genomes: The previously trained expert genomes
     :param base_filename: The base filename before the subtask name
     :param expert_config: The name of the configuration file for the expert agents
@@ -103,16 +106,20 @@ def train_master(expert_genomes: list[DefaultGenome], base_filename: str = 'succ
                            checkpoint=find_most_recent_file(checkpoint_name), insert_genomes=False,
                            genomes=successful_genomes, generations=1_000, base_filename=base_filename,
                            base_checkpoint_filename=checkpoint_name,
-                           extra_inputs=[{'visualize': False, 'expert_genomes': expert_genomes,
-                                          'expert_config_name': expert_config}, MasterAgent])
+                           extra_inputs=[
+                               {'visualize': False, 'expert_genomes': expert_genomes, 'use_autoencoder': True,
+                                'autoencoder': autoencoder, 'expert_config_name': expert_config}, MasterAgent])
     return best_genome
 
 
 def main() -> None:
-    """
-    The main function of the program
+    """The main function of the program
+
     :return: None
     """
+    global autoencoder
+    autoencoder = load_latest_state('autoencoder')
+    assert type(autoencoder) is Autoencoder
     subtasks: list[str] = list(subtask_dict.keys())
     expert_config: str = 'config-feedforward-expert'
     master_config: str = 'config-feedforward-master'

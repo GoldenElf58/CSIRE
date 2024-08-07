@@ -194,9 +194,11 @@ def test_expert_agent(subtask='beam', config_name='config-feedforward-expert', k
     :param kwargs: Additional controls/parameters for the ExpertAgent
     :return: None
     """
+    subtask_scenarios: dict = subtask_dict[subtask]
     if kwargs is None:
-        subtask_scenarios: dict = subtask_dict[subtask]
         kwargs = {'subtask_scenarios': subtask_scenarios, 'subtask': subtask}
+    else:
+        kwargs = {'subtask_scenarios': subtask_scenarios, 'subtask': subtask} | kwargs
     test_agent(ExpertAgent, subtask=subtask, config_name=config_name, kwargs=kwargs)
 
 

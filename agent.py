@@ -1,10 +1,13 @@
 from typing import Callable
 
 import neat
+import numpy as np
+import torch
 from ale_py import ALEInterface, ALEState, LoggerMode, roms
 from logs import logger
 from neat import Config, DefaultGenome
 
+from autoencoder import Autoencoder
 from utils import (convert_game_name, get_action_index, load_specific_state, run_neat_model, take_action,
                    find_most_recent_file, normalize_list)
 
@@ -28,7 +31,9 @@ class Agent:
                  stall_length: int = 60 * 6,
                  stall_punishment: int = 100,
                  give_incentive: bool = True,
-                 useless_action_set: set | None = None) -> None:
+                 useless_action_set: set | None = None,
+                 use_autoencoder: bool = False,
+                 autoencoder: Autoencoder | None = None) -> None:
         if useless_action_set is None:
             useless_action_set: set[int] = {0}
         self.index: int = index
@@ -50,15 +55,18 @@ class Agent:
         self.stall_punishment: float = stall_punishment
         self.give_incentive: bool = give_incentive
         self.useless_action_set: set[int] = useless_action_set
+        self.use_autoencoder: bool = use_autoencoder
+        self.autoencoder: Autoencoder | None = autoencoder
         self.x: int = 0
         self.y: int = 0
         self.last_x: int = 0
         self.last_y: int = 0
         self.prev_y = 0
         self.i: int | None = None
-        self.ram: None or list[int] = None
-        self.inputs: None or list[int] = None
-        self.outputs: None or list[float] = None
+        self.ram: None | list[int] = None
+        self.ram_state: None | torch.FloatTensor = None
+        self.inputs: None | list[int] = None
+        self.outputs: None | list[float] = None
         self.incentive: float = 0
         self.end: bool = False
         self.last_life: bool = False
@@ -107,6 +115,12 @@ class Agent:
         :return: None
         """
         self.inputs = normalize_list(inputs, 1/255)
+        if self.use_autoencoder:
+            if self.autoencoder is None:
+                logger.warning("Autoencoder is None")
+            with torch.no_grad():
+                code, _ = self.autoencoder.forward(self.ram_state)
+            self.inputs = code.numpy()
 
     def get_outputs(self) -> list[float] | None:
         """Gets the outputs of the Agent
@@ -178,7 +192,10 @@ class Agent:
         :return: A tuple containing: (The total reward over all steps the agent recieved, The genome's index)
         """
         for self.i in range(self.frames):
-            self.ram = self.ale.getRAM().reshape(1, -1)[0]
+            self.ram = self.ale.getRAM()
+            self.ram_state = np.array(self.ram, dtype=np.float32) / 255.0
+            self.ram_state = torch.FloatTensor(self.ram_state)
+            self.ram = self.ram.reshape(1, -1)[0]
             self.set_inputs(self.ram)
             self.add_incentive()
 
