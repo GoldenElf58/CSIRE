@@ -216,7 +216,9 @@ def load_specific_state(filename: str) -> Any | None:
     if filename in os.listdir('.'):
         filepath = os.path.join('.', filename)
         with open(filepath, 'rb') as file:
-            return pickle.load(file)
+            data = pickle.load(file)
+        file.close()
+        return data
     logger.debug(f'Did not or could not load file: {filename}')
     return None  # No matching files found
 

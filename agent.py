@@ -119,7 +119,7 @@ class Agent:
             if self.autoencoder is None:
                 logger.warning("Autoencoder is None")
             with torch.no_grad():
-                code, _ = self.autoencoder.forward(self.ram_state)
+                code, _ = self.autoencoder(self.ram_state)
             self.inputs = code.numpy()
 
     def get_outputs(self) -> list[float] | None:

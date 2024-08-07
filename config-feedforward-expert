@@ -5,7 +5,7 @@ pop_size              = 250
 reset_on_extinction   = False
 
 [DefaultGenome]
-num_inputs            = 39
+num_inputs            = 135
 num_outputs           = 8
 num_hidden            = 0
 initial_connection    = full
